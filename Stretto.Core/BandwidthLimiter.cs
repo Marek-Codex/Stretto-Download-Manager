@@ -5,6 +5,7 @@ namespace Stretto.Core;
 public interface IBandwidthLimiter
 {
     ValueTask ThrottleAsync(int bytes, CancellationToken ct);
+
 }
 
 /// <summary>One shared, allocation-free paced limiter. Reserve happens after a read and before

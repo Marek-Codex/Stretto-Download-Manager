@@ -11,6 +11,7 @@
 //                      [--throttle 2000000]    bytes/sec per connection (models CDN caps)
 //                      [--slow-first 100000]   bytes/sec for connections starting at byte 0 only
 //                      [--stall-first]         a connection starting at byte 0 sends a little, then hangs
+//                      [--max-concurrent 4]    answer 503 to ranged requests beyond this many at once
 
 const http = require('http');
 
@@ -26,6 +27,8 @@ const SIZE = arg('size', 32 * 1024 * 1024);
 const FLAKY = arg('flaky', 0);
 const THROTTLE = arg('throttle', 0);
 const NO_RANGE = flag('no-range');
+const MAX_CONCURRENT = arg('max-concurrent', 0);
+let active = 0;
 const SLOW_FIRST = arg('slow-first', 0);
 const STALL_FIRST = flag('stall-first');
 const ETAG = '"stretto-test-v1"';
@@ -61,6 +64,15 @@ const server = http.createServer((req, res) => {
   const requested = decodeURIComponent(req.url.split('?')[0].replace(/^\//, '')) || 'stretto-test.bin';
 
   const length = end - start + 1;
+
+  // A site that allows only so many parallel range requests and turns the rest away.
+  // The one-byte probe is not counted: it is over before it could matter.
+  if (MAX_CONCURRENT > 0 && range && length > 1) {
+    if (active >= MAX_CONCURRENT) { res.writeHead(503).end(); return; }
+    active++;
+    res.on('close', () => { active--; });
+  }
+
   const headers = {
     'Content-Type': 'application/octet-stream',
     'Content-Length': String(length),

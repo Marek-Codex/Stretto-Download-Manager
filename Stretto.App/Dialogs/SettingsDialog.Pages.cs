@@ -89,7 +89,8 @@ public sealed partial class SettingsDialog
         yield return GroupTitle("Speed");
         yield return Card(
             Row("Downloads at the same time", "The rest wait their turn.", _concurrent),
-            Row("Connections per download", "Parallel byte ranges. More is not always faster.", _connections),
+            Row("Connections per download", "The most one download may use. Servers that limit each connection need more; others need fewer.", _connections),
+            Row("Add connections automatically", "Starts with 4 and adds more while the speed keeps improving, up to the number above. Stops if a site turns one away. Off opens them all at once.", _gentle),
             Row("Speed limit", "KB/s across all downloads. 0 means no limit.", _speedLimit));
 
         yield return GroupTitle("Reliability");
@@ -97,7 +98,6 @@ public sealed partial class SettingsDialog
             Row("Connection timeout", "Seconds to wait for a server to answer.", _timeout),
             Row("Retries per connection", "A dropped range resumes from where it stopped.", _retries),
             Row("Retry failed downloads automatically", "Up to three times: after 30 seconds, 2 minutes and 10 minutes. Not for expired links or sign-in pages.", _autoRetry),
-            Row("Go easy on unknown sites", "Up to 4 connections unless a limit is set below. Helps sites that refuse parallel requests.", _gentle),
             StackRow("Per-site connection limits", "One per line. Some sites hand out single-use links and refuse extra range requests.", _hostLimits));
 
         yield return GroupTitle("Sign-in");

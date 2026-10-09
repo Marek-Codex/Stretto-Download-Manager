@@ -19,8 +19,18 @@ public sealed class DownloadRequest
     /// <summary>Raw Cookie header value, so authenticated URLs can be re-requested outside the browser.</summary>
     public string? Cookie { get; init; }
 
-    /// <summary>Desired parallel connections. Clamped, and ignored when the server refuses ranges.</summary>
+    /// <summary>Desired parallel connections. Clamped, and ignored when the server refuses ranges.
+    /// With <see cref="Adaptive"/> it is the most the download may grow to, not the number it
+    /// starts with.</summary>
     public int Connections { get; init; } = 8;
+
+    /// <summary>
+    /// Start with a few connections and add more only while the total speed keeps improving,
+    /// up to <see cref="Connections"/>. A fixed fan-out is too many for a site that refuses
+    /// parallel ranges and too few for one that throttles each connection; measuring settles
+    /// it per download. A speed limit needs no special case: growth stops once the limit is what holds the speed.
+    /// </summary>
+    public bool Adaptive { get; init; }
     public IBandwidthLimiter? BandwidthLimiter { get; init; }
 
     /// <summary>False keeps an existing file and writes alongside it as "name (2).ext".
@@ -75,6 +85,18 @@ public sealed class Segment
         set => Volatile.Write(ref _completed, value);
     }
 
+    /// <summary>
+    /// Set when a connection added mid-download was turned away before it delivered a byte.
+    /// The range is then nobody's until another worker takes it, and the splitter must not
+    /// cut it up in the meantime.
+    /// </summary>
+    public bool Orphaned
+    {
+        get => Volatile.Read(ref _orphaned);
+        set => Volatile.Write(ref _orphaned, value);
+    }
+    private bool _orphaned;
+
     public long Length => End - Start + 1;
     public long Remaining => Length - Completed;
     public bool IsDone => Remaining <= 0;
@@ -109,4 +131,10 @@ public sealed record DownloadResult
     public required TimeSpan Elapsed { get; init; }
     public required int ConnectionsUsed { get; init; }
     public required bool WasResumed { get; init; }
+
+    /// <summary>The most connections that were open at once.</summary>
+    public int PeakConnections { get; init; }
+
+    /// <summary>The server turned away a connection added mid-download, so growth stopped there.</summary>
+    public bool ExtraConnectionsRefused { get; init; }
 }

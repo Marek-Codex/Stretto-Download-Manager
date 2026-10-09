@@ -173,7 +173,7 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         _startAuto = Toggle(settings.StartAutomatically);
         _progressWindow = Toggle(settings.ShowProgressWindow);
         _completeDialog = Toggle(settings.ShowCompleteDialog);
-        _gentle = Toggle(settings.GentleConnections);
+        _gentle = Toggle(settings.AdaptiveConnections);
         _windowsAuth = Toggle(settings.UseWindowsCredentials);
         _autoRetry = Toggle(settings.AutoRetry);
         _resumeOnStartup = Toggle(settings.ResumeOnStartup);
@@ -373,7 +373,7 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         _settings.ConnectionTimeoutSeconds = IntOf(_timeout, _settings.ConnectionTimeoutSeconds);
         _settings.MaxRetriesPerSegment = IntOf(_retries, _settings.MaxRetriesPerSegment);
         _settings.SpeedLimitBytesPerSecond = double.IsNaN(_speedLimit.Value) ? 0 : (long)Math.Round(Math.Max(0, _speedLimit.Value) * 1024);
-        _settings.GentleConnections = _gentle.IsOn;
+        _settings.AdaptiveConnections = _gentle.IsOn;
         _settings.UseWindowsCredentials = _windowsAuth.IsOn;
         _settings.AutoRetry = _autoRetry.IsOn;
         _settings.HostConnectionLimits = ParseHostLimits(_hostLimits.Text);

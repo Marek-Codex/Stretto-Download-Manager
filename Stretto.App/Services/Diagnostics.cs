@@ -28,7 +28,7 @@ public static class Diagnostics
 
         text.AppendLine("Settings");
         text.AppendLine($"  connections {settings.DefaultConnections}, simultaneous {settings.MaxConcurrentDownloads}, timeout {settings.ConnectionTimeoutSeconds}s, retries {settings.MaxRetriesPerSegment}");
-        text.AppendLine($"  speed limit {(settings.SpeedLimitBytesPerSecond > 0 ? $"{settings.SpeedLimitBytesPerSecond / 1024} KB/s" : "none")}, gentle {settings.GentleConnections}, auto retry {settings.AutoRetry}");
+        text.AppendLine($"  speed limit {(settings.SpeedLimitBytesPerSecond > 0 ? $"{settings.SpeedLimitBytesPerSecond / 1024} KB/s" : "none")}, adaptive {settings.AdaptiveConnections}, auto retry {settings.AutoRetry}");
         text.AppendLine($"  proxy {settings.ProxyMode} ({settings.ProxyProtocol}), Windows credentials {settings.UseWindowsCredentials}");
         text.AppendLine($"  browser monitoring {settings.BrowserMonitoring}, port {settings.HandoffPort}, confirm captures {settings.ConfirmCaptures}, clipboard {settings.MonitorClipboard}");
         text.AppendLine($"  antivirus scan {settings.ScanWithAntivirus}");

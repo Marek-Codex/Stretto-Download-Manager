@@ -37,10 +37,113 @@ public static class Program
         await runner.Run("converts a video to MP3", ConvertsToMp3);
         await runner.Run("rewraps to MP4 without re-encoding", RemuxesToMp4);
         await runner.Run("reports a clear error for a file ffmpeg cannot read", RefusesNonMedia);
+        await runner.Run("adds connections while a per-connection cap is the bottleneck", RampsUpUnderPerConnectionCap);
+        await runner.Run("stops adding connections and finishes when the server refuses extras", BacksOffWhenRefused);
+        await runner.Run("stops adding connections once a speed limit is what holds the speed", RampStopsAtSpeedLimit);
+        await runner.Run("opens every connection at once when not adaptive", FixedFanOutIsUnchanged);
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
 
         return runner.Report();
+    }
+
+    /// <summary>
+    /// Each connection is held to 500 KB/s, the way many CDNs do it, so the only way to go
+    /// faster is more connections. Four connections would take 20 seconds for this file.
+    /// </summary>
+    private static async Task RampsUpUnderPerConnectionCap()
+    {
+        const long size = 40L * 1024 * 1024;
+
+        await using var server = await TestServer.StartAsync(NextPort(), size, "--throttle", "500000");
+        using var folder = new TempFolder();
+
+        var original = SegmentedDownloader.RampInterval;
+        SegmentedDownloader.RampInterval = TimeSpan.FromSeconds(1);
+        try
+        {
+            // The app always passes a limiter, set to "no limit" by default. It must not be
+            // mistaken for a speed limit, or the ramp would never run in the real program.
+            var result = await Download(server.Url("capped.bin"), folder.Path, connections: 16,
+                adaptive: true, limiter: new BandwidthLimiter());
+
+            VerifyPattern(result.FilePath, size);
+            Assert.True(result.PeakConnections >= 9, $"expected growth past the starting four, peaked at {result.PeakConnections}");
+            Assert.False(result.ExtraConnectionsRefused, "nothing refused the extra connections");
+            Assert.True(result.Elapsed < TimeSpan.FromSeconds(16),
+                $"took {result.Elapsed.TotalSeconds:0.0}s; four fixed connections would need about 20");
+        }
+        finally
+        {
+            SegmentedDownloader.RampInterval = original;
+        }
+    }
+
+    /// <summary>
+    /// The server answers 503 to anything beyond four parallel ranges. The download must
+    /// still finish with the right bytes: the turned-away range goes back to a worker that
+    /// frees up, rather than failing the file or being left as a hole.
+    /// </summary>
+    private static async Task BacksOffWhenRefused()
+    {
+        const long size = 24L * 1024 * 1024;
+
+        await using var server = await TestServer.StartAsync(NextPort(), size, "--throttle", "1000000", "--max-concurrent", "4");
+        using var folder = new TempFolder();
+
+        var original = SegmentedDownloader.RampInterval;
+        SegmentedDownloader.RampInterval = TimeSpan.FromSeconds(1);
+        try
+        {
+            var result = await Download(server.Url("limited.bin"), folder.Path, connections: 16, adaptive: true);
+
+            VerifyPattern(result.FilePath, size);
+            Assert.Equal(size, new FileInfo(result.FilePath).Length, "final size");
+            Assert.True(result.ExtraConnectionsRefused, "the refused extra connection should have been noticed");
+        }
+        finally
+        {
+            SegmentedDownloader.RampInterval = original;
+        }
+    }
+
+    private static async Task RampStopsAtSpeedLimit()
+    {
+        const long size = 30L * 1024 * 1024;
+
+        // The limit is 3 MB/s and each connection gets 500 KB/s, so six connections reach it.
+        // Growth must stop there instead of running on to the ceiling of sixteen.
+        await using var server = await TestServer.StartAsync(NextPort(), size, "--throttle", "500000");
+        using var folder = new TempFolder();
+
+        var original = SegmentedDownloader.RampInterval;
+        SegmentedDownloader.RampInterval = TimeSpan.FromSeconds(1);
+        try
+        {
+            var result = await Download(server.Url("limited-speed.bin"), folder.Path, connections: 16,
+                adaptive: true, limiter: new BandwidthLimiter(3_000_000));
+
+            VerifyPattern(result.FilePath, size);
+            Assert.True(result.PeakConnections > SegmentedDownloader.RampStart, $"should grow from the start, peaked at {result.PeakConnections}");
+            Assert.True(result.PeakConnections <= 10, $"should stop once the limit binds, peaked at {result.PeakConnections}");
+        }
+        finally
+        {
+            SegmentedDownloader.RampInterval = original;
+        }
+    }
+
+    private static async Task FixedFanOutIsUnchanged()
+    {
+        const long size = 8L * 1024 * 1024;
+
+        await using var server = await TestServer.StartAsync(NextPort(), size);
+        using var folder = new TempFolder();
+
+        var result = await Download(server.Url("fixed.bin"), folder.Path, connections: 8);
+
+        VerifyPattern(result.FilePath, size);
+        Assert.True(result.PeakConnections >= 8, $"a fixed download opens all eight at once, peaked at {result.PeakConnections}");
     }
 
     // The published test vectors for the three-byte input "abc".
@@ -587,7 +690,9 @@ public static class Program
         int connections,
         IProgress<ProgressSnapshot>? progress = null,
         CancellationToken ct = default,
-        bool timestamp = false)
+        bool timestamp = false,
+        bool adaptive = false,
+        IBandwidthLimiter? limiter = null)
     {
         var downloader = new SegmentedDownloader(SegmentedDownloader.CreateDefaultClient(), maxRetriesPerSegment: 5);
 
@@ -597,6 +702,8 @@ public static class Program
             TargetDirectory = directory,
             Connections = connections,
             UseServerTimestamp = timestamp,
+            Adaptive = adaptive,
+            BandwidthLimiter = limiter,
         }, progress, ct);
     }
 

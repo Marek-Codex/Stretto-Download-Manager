@@ -75,7 +75,7 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
         Add(sheet, "Saved in", item.TargetDirectory);
         Add(sheet, "Address", item.Url, maxLines: 3);
         Add(sheet, "Added", item.Added.LocalDateTime.ToString("d MMMM yyyy, HH:mm"));
-        Add(sheet, "Kind", item.IsStream ? "Streaming media, through ffmpeg" : $"HTTP, {item.Connections} connections");
+        Add(sheet, "Kind", item.IsStream ? "Streaming media, through ffmpeg" : $"HTTP, up to {item.Connections} connections");
         Add(sheet, "Proxy", item.ProxyDescription);
         Add(sheet, "Referrer", item.Referrer, maxLines: 2);
         Add(sheet, "Cookies", string.IsNullOrEmpty(item.Cookie) ? null : $"{item.Cookie.Split(';').Length} sent from the browser");

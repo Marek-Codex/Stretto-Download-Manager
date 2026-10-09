@@ -162,8 +162,9 @@ public sealed class AppSettings
 
     // ═══ Network ═══
 
-    /// <summary>Parallel byte ranges per download. XDM calls these segments.</summary>
-    public int DefaultConnections { get; set; } = 8;
+    /// <summary>The most parallel byte ranges one download may use. With
+    /// <see cref="AdaptiveConnections"/> it only gets there while the speed keeps improving.</summary>
+    public int DefaultConnections { get; set; } = 16;
 
     public int ConnectionTimeoutSeconds { get; set; } = 30;
 
@@ -172,8 +173,12 @@ public sealed class AppSettings
     /// <summary>Global transfer ceiling; zero means unlimited.</summary>
     public long SpeedLimitBytesPerSecond { get; set; }
 
-    /// <summary>Use fewer parallel ranges by default for sites without a saved limit.</summary>
-    public bool GentleConnections { get; set; } = true;
+    /// <summary>
+    /// Open a few connections and add more only while the speed keeps improving, up to
+    /// <see cref="DefaultConnections"/>. Replaces a blanket cap of four on every unlisted
+    /// site, which held a fast line to what four throttled connections could carry.
+    /// </summary>
+    public bool AdaptiveConnections { get; set; } = true;
 
     /// <summary>Retry a failed download by itself, a few times with growing gaps.</summary>
     public bool AutoRetry { get; set; } = true;
@@ -213,9 +218,9 @@ public sealed class AppSettings
         if (HostConnectionLimits.TryGetValue(uri.Host, out var capped))
             return Math.Clamp(Math.Min(wanted, capped), 1, SegmentedDownloader.MaxConnections);
 
-        // A cautious baseline often performs better than a large fixed fan-out on
-        // tokenized links and hosts that rate limit parallel range requests.
-        return GentleConnections ? Math.Min(wanted, 4) : wanted;
+        // Unlisted hosts get the full ceiling. Whether they can use it is measured, not
+        // assumed: an adaptive download starts small and a refused connection stops growth.
+        return Math.Clamp(wanted, 1, SegmentedDownloader.MaxConnections);
     }
 
     // ═══ Proxy ═══
@@ -362,8 +367,16 @@ public sealed class AppSettings
             // Version 2: media notices off (noisy, and the popup lists media anyway), and
             // unknown hosts start gently, since some refuse eight parallel ranges.
             NotifyOnMedia = false;
-            GentleConnections = true;
             SettingsVersion = 2;
+        }
+
+        if (SettingsVersion < 3)
+        {
+            // Version 3: connections ramp up on their own, so the ceiling can be higher. An
+            // untouched default of 8 moves to 16; a value the user chose stands.
+            if (DefaultConnections == 8)
+                DefaultConnections = 16;
+            SettingsVersion = 3;
         }
     }
 

@@ -846,6 +846,7 @@ public sealed class DownloadService
             // Capped here rather than when the download is added, so the limit also applies
             // to everything already in the list and to anything a refresh points elsewhere.
             Connections = _settings.ConnectionsFor(item.Url, item.Connections),
+            Adaptive = _settings.AdaptiveConnections,
             BandwidthLimiter = _bandwidthLimiter,
             Headers = headers,
             Cookie = item.Cookie,
