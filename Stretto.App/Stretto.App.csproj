@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Stretto.App</RootNamespace>
+    <!-- The one place the version lives. Release tags on GitHub are compared against it. -->
+    <Version>0.1.0</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\stretto.ico</ApplicationIcon>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <AppxPackage>false</AppxPackage>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <!-- XamlCompiler otherwise keeps a shared-state server alive between builds,
+         which can wedge and then fail with exit code 1 and no message at all. -->
+    <ForceSharedStateShutdown>true</ForceSharedStateShutdown>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stretto.Core\Stretto.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\stretto.ico" />
+    <None Remove="Assets\stretto-icon.png" />
+    <Content Include="Assets\stretto.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\stretto-icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The browser extension ships next to the app so Load unpacked has a stable
+         folder to point at, store listing or not. -->
+    <Content Include="..\extensions\chromium\**" CopyToOutputDirectory="PreserveNewest" Link="extensions\chromium\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- The Firefox build is the shared files from the Chromium folder plus Firefox's own
+         manifest and capture script, assembled here so there is one copy of the code. -->
+    <Content Include="..\extensions\chromium\common.js;..\extensions\chromium\media.js;..\extensions\chromium\popup.*;..\extensions\chromium\options.*;..\extensions\chromium\icon*.png"
+             CopyToOutputDirectory="PreserveNewest" Link="extensions\firefox\%(Filename)%(Extension)" />
+    <Content Include="..\extensions\firefox\**" CopyToOutputDirectory="PreserveNewest" Link="extensions\firefox\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- A packed copy for Install Add-on From File, which Firefox-based browsers that allow
+       unsigned add-ons (Developer Edition, Nightly, ESR, LibreWolf, Waterfox) take directly. -->
+  <Target Name="PackFirefoxExtension" AfterTargets="CopyFilesToOutputDirectory">
+    <ZipDirectory SourceDirectory="$(OutDir)extensions\firefox" DestinationFile="$(OutDir)extensions\stretto-firefox.xpi" Overwrite="true" />
+  </Target>
+</Project>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A plain console runner rather than a test framework: it needs no packages, runs offline,
+    and the whole suite is one command. The engine is the part of Stretto worth testing and
+    it has no UI dependencies, so nothing more elaborate earns its keep here.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Stretto.Tests</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stretto.Core\Stretto.Core.csproj" />
+  </ItemGroup>
+
+</Project>

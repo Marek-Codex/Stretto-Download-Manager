@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Stretto.App.Dialogs.BatchDownloadDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    >
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- WinUI's own compact density, scoped to this window rather than set
+                     app wide: secondary windows are passed through, not sat in. -->
+                <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- A segmented bar rather than a Pivot: Pivot headers are sized for a page, and in a
+         window this small they shouted over the form they were meant to label. -->
+    <StackPanel Width="500" Spacing="12">
+        <SelectorBar x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged" Margin="-4,0,0,0">
+            <SelectorBarItem x:Name="PatternTabItem" Text="Pattern" />
+            <SelectorBarItem x:Name="LinksTabItem" Text="Links" />
+        </SelectorBar>
+
+        <!-- ═══ Pattern ═══ -->
+        <StackPanel x:Name="PatternPanel" Spacing="10">
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="One address with an asterisk where the number or letter changes." />
+
+            <TextBox x:Name="PatternBox" Header="Address" PlaceholderText="https://host/images/edge*.png" TextChanged="Pattern_Changed" />
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ComboBox x:Name="WildcardBox" Header="Asterisk becomes" HorizontalAlignment="Stretch" SelectionChanged="Wildcard_Changed">
+                    <ComboBoxItem Content="Numbers" IsSelected="True" />
+                    <ComboBoxItem Content="Letters" />
+                </ComboBox>
+                <TextBox Grid.Column="1" x:Name="FromBox" Header="From" Text="1" TextChanged="Pattern_Changed" />
+                <TextBox Grid.Column="2" x:Name="ToBox" Header="To" Text="10" TextChanged="Pattern_Changed" />
+                <NumberBox Grid.Column="3" x:Name="PadWidthBox" Header="Digits" Value="3" Minimum="1" Maximum="10" Width="92"
+                           SpinButtonPlacementMode="Compact" IsEnabled="False" ValueChanged="PadWidth_Changed" />
+            </Grid>
+
+            <StackPanel x:Name="LeadingZeroPanel" Orientation="Horizontal">
+                <CheckBox x:Name="LeadingZeroCheck" Content="Pad with leading zeros" Checked="Pattern_Changed" Unchecked="Pattern_Changed" />
+            </StackPanel>
+
+            <Border Padding="12,9" CornerRadius="8"
+                    Background="{StaticResource StrettoCardBrush}"
+                    BorderBrush="{StaticResource StrettoCardBorderBrush}" BorderThickness="1">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Name="PreviewCount" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource StrettoAccentBrush}" />
+                    <TextBlock x:Name="PreviewFirst" FontSize="11.5" Opacity="0.8" TextTrimming="CharacterEllipsis" FontFamily="Consolas" />
+                    <TextBlock x:Name="PreviewSecond" FontSize="11.5" Opacity="0.8" TextTrimming="CharacterEllipsis" FontFamily="Consolas" />
+                    <TextBlock x:Name="PreviewLast" FontSize="11.5" Opacity="0.8" TextTrimming="CharacterEllipsis" FontFamily="Consolas" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- ═══ Links ═══ -->
+        <StackPanel x:Name="LinksPanel" Spacing="10" Visibility="Collapsed">
+            <TextBlock Text="Paste download links, one per line. Anything that is not a link is ignored."
+                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+            <TextBox x:Name="LinksBox" Height="176" AcceptsReturn="True" TextWrapping="Wrap"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto" TextChanged="Links_Changed"
+                     PlaceholderText="https://host/one.zip&#x0a;https://host/two.zip" />
+            <TextBlock x:Name="LinksCount" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource StrettoAccentBrush}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,50 @@
+{
+  "manifest_version": 2,
+  "name": "Stretto Download Manager",
+  "version": "1.2.2",
+  "description": "Hands downloads from the browser to the Stretto desktop app.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "stretto@plexus-apps",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "permissions": [
+    "downloads",
+    "cookies",
+    "storage",
+    "contextMenus",
+    "notifications",
+    "webRequest",
+    "webRequestBlocking",
+    "activeTab",
+    "tabs",
+    "alarms",
+    "scripting",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["common.js", "media.js", "capture-firefox.js"],
+    "persistent": true
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "browser_action": {
+    "default_title": "Stretto Download Manager",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png"
+    }
+  }
+}

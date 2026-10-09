@@ -1,0 +1,476 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Stretto.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Stretto Download Manager">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="BaseAlt" />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid" Background="Transparent" KeyboardAcceleratorPlacementMode="Hidden">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Modifiers="Control" Key="N" Invoked="NewAccelerator_Invoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="SearchAccelerator_Invoked" />
+        </Grid.KeyboardAccelerators>
+
+        <!-- ═══ Title Bar ═══ -->
+        <!-- The pane toggle lives in the title bar, the way current Windows 11 apps carry it,
+             rather than as a hamburger at the top of the pane. -->
+        <TitleBar x:Name="AppTitleBar" Title="Stretto" Subtitle="Downloads, kept in parallel"
+                  IsPaneToggleButtonVisible="True" PaneToggleRequested="TitleBar_PaneToggleRequested">
+            <TitleBar.IconSource>
+                <BitmapIconSource UriSource="ms-appx:///Assets/stretto-icon.png"
+                                  ShowAsMonochrome="False" />
+            </TitleBar.IconSource>
+        </TitleBar>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- ═══ WORKSPACES ═══ -->
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Three places, organised by what you are doing: things moving, things you have,
+             and the order things will run in. File types are a filter inside Library, not
+             a tree in the pane: they only ever described finished files. -->
+        <NavigationView x:Name="Nav" Grid.Row="1"
+                        PaneDisplayMode="Auto" OpenPaneLength="212"
+                        CompactModeThresholdWidth="720" ExpandedModeThresholdWidth="980"
+                        IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False"
+                        IsSettingsVisible="False" IsTitleBarAutoPaddingEnabled="False"
+                        SelectionChanged="Nav_SelectionChanged" ItemInvoked="Nav_ItemInvoked">
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="TransfersNavItem" Content="Transfers" Tag="Transfers">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource IconTransfers}" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.InfoBadge>
+                        <InfoBadge x:Name="TransfersBadge" Visibility="Collapsed" />
+                    </NavigationViewItem.InfoBadge>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="LibraryNavItem" Content="Library" Tag="Library">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource IconLibrary}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="QueuesNavItem" Content="Queues" Tag="Queues">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource IconQueues}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <!-- Browser state is worth a glance but the switch is rarely touched, so the
+                     state sits in the pane and the switch one click away in a flyout. -->
+                <NavigationViewItem x:Name="BrowserNavItem" Tag="Browser" SelectsOnInvoked="False">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource IconBrowser}" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.InfoBadge>
+                        <InfoBadge x:Name="BrowserBadge" />
+                    </NavigationViewItem.InfoBadge>
+                    <NavigationViewItem.Content>
+                        <StackPanel Spacing="0">
+                            <TextBlock Text="Browser" />
+                            <TextBlock x:Name="BrowserNavStatus" Text="Off" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </NavigationViewItem.Content>
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="RightEdgeAlignedBottom">
+                            <StackPanel Width="280" Spacing="10">
+                                <TextBlock Text="Browser capture" FontSize="{StaticResource StrettoTextTitle}" FontWeight="SemiBold" />
+                                <ToggleSwitch x:Name="BrowserMonitoringToggle" Toggled="BrowserMonitoring_Toggled"
+                                              Header="Take downloads from the browser" />
+                                <TextBlock x:Name="BrowserStatusText" Text="Off" FontSize="{StaticResource StrettoTextCaption}" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Spacing="0" Margin="-12,0,0,0">
+                                    <HyperlinkButton x:Name="PairingButton" Content="Set up the extension" Click="Pairing_Click" />
+                                    <HyperlinkButton Content="Grab media from a page" Click="MediaGrabber_Click" />
+                                    <HyperlinkButton Content="Browser settings" Click="BrowserSettings_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Flyout>
+                    </FlyoutBase.AttachedFlyout>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="SettingsNavItem" Content="Settings" Tag="Settings" SelectsOnInvoked="False">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="{StaticResource IconSettings}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!-- ═══ CONTENT ═══ -->
+            <!-- ═══════════════════════════════════════ -->
+            <Grid Margin="0,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Heading, live summary, and the one create action. -->
+                <Grid Padding="28,10,24,6" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock x:Name="ViewTitleText" Text="Transfers" FontSize="26" FontWeight="SemiBold" />
+                        <TextBlock x:Name="ViewSummaryText" Text="" FontSize="{StaticResource StrettoTextLabel}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <!-- A split button: the commonest thing in the app is one click, and the
+                         other ways of adding are one arrow away rather than in front of it. -->
+                    <SplitButton x:Name="NewButton" Grid.Column="1" VerticalAlignment="Center" Click="NewSplit_Click"
+                                 Padding="14,8" CornerRadius="8" FontWeight="SemiBold"
+                                 Background="{StaticResource StrettoAccentSoftBrush}"
+                                 BorderBrush="{StaticResource StrettoAccentStrokeBrush}"
+                                 ToolTipService.ToolTip="Add a download (Ctrl+N)">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="{StaticResource IconNew}" FontSize="15" Foreground="{StaticResource StrettoAccentBrush}" />
+                            <TextBlock Text="Add download" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <SplitButton.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuFlyoutItem Text="Several links at once" Click="BatchDownload_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="{StaticResource IconBatch}" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="VideoDownloadItem" Text="Video from a page" Click="VideoDownload_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="{StaticResource IconVideoGrab}" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Media seen in the browser" Click="MediaGrabber_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="{StaticResource IconBrowser}" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </SplitButton.Flyout>
+                    </SplitButton>
+                </Grid>
+
+                <!-- Library's file-type filter. Built from the categories table, so a category
+                     added in Settings appears here too. -->
+                <ScrollViewer x:Name="ChipBar" Grid.Row="1" Visibility="Collapsed" Padding="24,4,24,2"
+                              HorizontalScrollBarVisibility="Hidden" HorizontalScrollMode="Enabled"
+                              VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="ChipPanel" Orientation="Horizontal" Spacing="6" />
+                </ScrollViewer>
+
+                <!-- The command bar follows the selection: commands for the whole view when
+                     nothing is picked, commands for the picked rows when something is. -->
+                <Grid x:Name="CommandBand" Grid.Row="2" Padding="16,4,20,4" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="SelectionPill" Visibility="Collapsed" VerticalAlignment="Center" Margin="4,0,0,0"
+                            CornerRadius="14" Padding="10,3,4,3"
+                            Background="{StaticResource StrettoAccentSoftBrush}"
+                            BorderBrush="{StaticResource StrettoAccentStrokeBrush}" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock x:Name="SelectionCountText" VerticalAlignment="Center" FontWeight="SemiBold"
+                                       FontSize="{StaticResource StrettoTextCaption}" Foreground="{StaticResource StrettoAccentBrush}" />
+                            <Button Click="ClearSelection_Click" Padding="5" MinWidth="0" MinHeight="0" CornerRadius="10"
+                                    Background="Transparent" BorderThickness="0"
+                                    ToolTipService.ToolTip="Clear selection (Esc)" AutomationProperties.Name="Clear selection">
+                                <FontIcon Glyph="{StaticResource IconSelectNone}" FontSize="11" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <CommandBar x:Name="Commands" Grid.Column="1" HorizontalAlignment="Left" Background="Transparent"
+                                DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" OverflowButtonVisibility="Auto">
+                        <!-- Whole-view commands -->
+                        <AppBarButton x:Name="PauseAllButton" Label="Pause all" Click="PauseAll_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconPause}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="ResumeAllButton" Label="Resume all" Click="ResumeAll_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconResume}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="OpenDownloadsButton" Label="Open downloads folder" Click="OpenFolder_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconFolder}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="ClearFinishedButton" Label="Clear list" Click="RemoveFinished_Click"
+                                      ToolTipService.ToolTip="Remove finished downloads from the list. Files stay on disk.">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconClear}" /></AppBarButton.Icon>
+                        </AppBarButton>
+
+                        <!-- Selection commands -->
+                        <AppBarButton x:Name="PauseButton" Label="Pause" Click="Pause_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconPause}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="ResumeButton" Label="Resume" Click="Resume_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconResume}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="OpenButton" Label="Open" Click="OpenFile_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconOpen}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="OpenFolderButton" Label="Show in folder" Click="OpenContainingFolder_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconFolder}" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="DeleteButton" Label="Remove" Click="Delete_Click">
+                            <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconDelete}" /></AppBarButton.Icon>
+                        </AppBarButton>
+
+                        <AppBarSeparator x:Name="DetailsSeparator" />
+                        <AppBarToggleButton x:Name="DetailsToggle" Label="Details" Click="DetailsToggle_Click">
+                            <AppBarToggleButton.Icon><FontIcon Glyph="{StaticResource IconDetails}" /></AppBarToggleButton.Icon>
+                        </AppBarToggleButton>
+
+                        <!-- Rarely used, so behind the bar's own overflow rather than a menu
+                             button of their own. -->
+                        <CommandBar.SecondaryCommands>
+                            <AppBarButton Label="Import a download list" Click="Import_Click">
+                                <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconOpen}" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton Label="Export the download list" Click="Export_Click">
+                                <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconFile}" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarSeparator />
+                            <AppBarButton Label="Open the log file" Click="OpenLog_Click">
+                                <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconBrowse}" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton Label="About Stretto" Click="About_Click">
+                                <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconAbout}" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton Label="Exit" Click="Exit_Click">
+                                <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconExit}" /></AppBarButton.Icon>
+                            </AppBarButton>
+                        </CommandBar.SecondaryCommands>
+                    </CommandBar>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <DropDownButton x:Name="SortButton" Visibility="Collapsed" Padding="10,6"
+                                        Background="Transparent" BorderThickness="0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="{StaticResource IconSort}" FontSize="14" />
+                                <TextBlock x:Name="SortLabel" Text="Newest first" FontSize="{StaticResource StrettoTextCaption}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <RadioMenuFlyoutItem x:Name="SortNewest" Text="Newest first" GroupName="Sort" Tag="Newest" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortOldest" Text="Oldest first" GroupName="Sort" Tag="Oldest" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortName" Text="Name" GroupName="Sort" Tag="Name" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortSize" Text="Largest first" GroupName="Sort" Tag="Size" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortType" Text="File type" GroupName="Sort" Tag="Type" Click="Sort_Click" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <AutoSuggestBox x:Name="SearchBox" Width="220" PlaceholderText="Search (Ctrl+F)"
+                                        QueryIcon="Find" TextChanged="Search_TextChanged" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- ═══ Body ═══ -->
+                <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid x:Name="ListArea">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <!-- Grouped: Transfers by stage, Library by when things finished (or by
+                             type, or one sorted run). The groups are rebuilt in place on every
+                             tick, so selection survives a row moving from one to another. -->
+                        <ListView x:Name="DownloadList" Grid.Row="1" SelectionMode="Extended"
+                                  KeyDown="DownloadList_KeyDown" ContextRequested="DownloadList_ContextRequested"
+                                  SelectionChanged="DownloadList_SelectionChanged"
+                                  DoubleTapped="DownloadList_DoubleTapped"
+                                  RightTapped="DownloadList_RightTapped"
+                                  Padding="12,0,12,12" ScrollViewer.HorizontalScrollMode="Disabled" Background="Transparent">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Padding" Value="12,7,8,7" />
+                                    <Setter Property="Margin" Value="0,1" />
+                                    <Setter Property="CornerRadius" Value="6" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderContainerStyle>
+                                        <Style TargetType="ListViewHeaderItem">
+                                            <Setter Property="Padding" Value="12,14,12,4" />
+                                            <Setter Property="MinHeight" Value="0" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        </Style>
+                                    </GroupStyle.HeaderContainerStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="1" Text="{Binding CountText}" FontSize="13"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Aside}" FontSize="{StaticResource StrettoTextCaption}"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource StrettoAccentBrush}" FontWeight="SemiBold" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListView.GroupStyle>
+                            <ListView.Resources>
+                                <!-- One flyout, not two: the items are shown or hidden in
+                                     DownloadMenu_Opening according to what is selected, which
+                                     keeps a single list of handlers rather than parallel menus
+                                     that drift apart. -->
+                                <MenuFlyout x:Key="RowMenu" x:Name="RowMenu" Opening="DownloadMenu_Opening">
+                                    <MenuFlyoutItem x:Name="MenuOpenFile" Text="Open" Click="OpenFile_Click" />
+                                    <MenuFlyoutItem x:Name="MenuOpenFolder" Text="Show in folder" Click="OpenContainingFolder_Click" />
+                                    <MenuFlyoutItem x:Name="MenuPause" Text="Pause" Click="Pause_Click" />
+                                    <MenuFlyoutItem x:Name="MenuResume" Text="Resume" Click="Resume_Click" />
+                                    <MenuFlyoutSeparator x:Name="MenuSeparatorOne" />
+                                    <MenuFlyoutItem x:Name="MenuSaveAs" Text="Save as" Click="SaveAs_Click" />
+                                    <MenuFlyoutItem x:Name="MenuRefreshLink" Text="Refresh link" Click="RefreshLink_Click" />
+                                    <MenuFlyoutItem x:Name="MenuShowProgress" Text="Progress window" Click="ShowProgress_Click" />
+                                    <MenuFlyoutSubItem x:Name="MenuMoveTo" Text="Move to queue" />
+                                    <MenuFlyoutSeparator x:Name="MenuSeparatorTwo" />
+                                    <MenuFlyoutItem x:Name="MenuCopyLink" Text="Copy link" Click="CopyLink_Click" />
+                                    <MenuFlyoutItem x:Name="MenuCopyCurl" Text="Copy as cURL" Click="CopyCurl_Click" />
+                                    <MenuFlyoutItem x:Name="MenuCopyFile" Text="Copy file" Click="CopyFile_Click" />
+                                    <MenuFlyoutSubItem x:Name="MenuConvert" Text="Convert to">
+                                        <MenuFlyoutItem Text="MP3 audio" Tag="Mp3" Click="Convert_Click" />
+                                        <MenuFlyoutItem Text="MP4 video" Tag="Mp4" Click="Convert_Click" />
+                                        <MenuFlyoutItem Text="MP4 without re-encoding" Tag="Mp4Remux" Click="Convert_Click" />
+                                    </MenuFlyoutSubItem>
+                                    <MenuFlyoutItem x:Name="MenuRestart" Text="Restart" Click="Restart_Click" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="MenuRemove" Text="Remove" Click="Delete_Click" />
+                                    <MenuFlyoutItem x:Name="MenuProperties" Text="Details" Click="Properties_Click" />
+                                </MenuFlyout>
+                            </ListView.Resources>
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- One row, one line of detail, one action. The status dot
+                                         and bar carry state by colour; the words carry it for
+                                         anyone who cannot rely on colour. -->
+                                    <Grid ColumnSpacing="14" MinHeight="44">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="36" Height="36" CornerRadius="8" VerticalAlignment="Center"
+                                                Background="{StaticResource StrettoAccentSoftBrush}">
+                                            <FontIcon Glyph="{Binding CategoryGlyph}" FontSize="16"
+                                                      Foreground="{StaticResource StrettoAccentBrush}" />
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <ProgressBar Value="{Binding Progress}" Maximum="100" MinHeight="3"
+                                                         Visibility="{Binding ProgressVisibility}"
+                                                         Foreground="{Binding StatusBrush}"
+                                                         Background="{StaticResource StrettoTrackBrush}" />
+                                            <Grid ColumnSpacing="7">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding DetailLine}" FontSize="{StaticResource StrettoTextHint}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="2" Click="RowAction_Click" Width="34" Height="34" Padding="0"
+                                                CornerRadius="17" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
+                                                ToolTipService.ToolTip="{Binding RowActionLabel}"
+                                                AutomationProperties.Name="{Binding RowActionLabel}">
+                                            <FontIcon Glyph="{Binding RowActionGlyph}" FontSize="14" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- Clipboard links, media sightings and finished downloads surface
+                             here. In their own row, so an open notice pushes the list down
+                             rather than covering its first rows; closed, it takes no space. -->
+                        <StackPanel Grid.Row="0" Margin="12,0,12,0">
+                        <InfoBar x:Name="Notice" Margin="0,4" IsOpen="False"
+                                 IsClosable="True" Severity="Informational">
+                            <InfoBar.ActionButton>
+                                <Button x:Name="NoticeAction" Click="Notice_Click" />
+                            </InfoBar.ActionButton>
+                        </InfoBar>
+
+                        <!-- Separate from Notice because it stays up while the user goes off to
+                             the browser, and closing it is how you call the refresh off. -->
+                        <InfoBar x:Name="RefreshBanner" Margin="0,4" IsOpen="False"
+                                 IsClosable="True" Severity="Informational" Closed="RefreshBanner_Closed" />
+                        </StackPanel>
+
+                        <!-- Empty state: says what the view is for and offers the next step. -->
+                        <StackPanel x:Name="EmptyState" Grid.Row="1" Spacing="8" MaxWidth="380" Margin="0,0,0,40"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Width="56" Height="56" CornerRadius="14" HorizontalAlignment="Center" Margin="0,0,0,6"
+                                    Background="{StaticResource StrettoAccentSoftBrush}">
+                                <FontIcon x:Name="EmptyGlyph" Glyph="{StaticResource IconTransfers}" FontSize="24"
+                                          Foreground="{StaticResource StrettoAccentBrush}" />
+                            </Border>
+                            <TextBlock x:Name="EmptyStateText" Text="Nothing downloading" FontSize="{StaticResource StrettoTextTitle}"
+                                       FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock x:Name="EmptyBodyText" FontSize="{StaticResource StrettoTextCaption}" TextWrapping="Wrap"
+                                       TextAlignment="Center" HorizontalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0">
+                                <Button x:Name="EmptyActionButton" Click="EmptyAction_Click" Style="{StaticResource AccentButtonStyle}" />
+                                <Button x:Name="EmptySecondaryButton" Click="EmptySecondary_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Queues are a place you manage, so they get the page rather than a
+                         modal window that hides the list they control. -->
+                    <Border x:Name="QueueHost" Visibility="Collapsed" Padding="28,8,24,20" />
+
+                    <!-- ═══ Details pane ═══ -->
+                    <Border x:Name="DetailsPane" Grid.Column="1" Width="340" Visibility="Collapsed"
+                            Margin="0,0,12,12" CornerRadius="{StaticResource StrettoRadiusCard}"
+                            Background="{StaticResource StrettoCardBrush}"
+                            BorderBrush="{StaticResource StrettoCardBorderBrush}" BorderThickness="1">
+                        <Grid>
+                            <ScrollViewer x:Name="DetailsScroller" Padding="16,14,16,16" VerticalScrollBarVisibility="Auto">
+                                <ContentControl x:Name="DetailsHost" HorizontalContentAlignment="Stretch" />
+                            </ScrollViewer>
+                            <StackPanel x:Name="DetailsEmpty" Spacing="6" Padding="24" VerticalAlignment="Center">
+                                <FontIcon Glyph="{StaticResource IconDetails}" FontSize="22"
+                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                <TextBlock x:Name="DetailsEmptyText" Text="Pick a download to see where it came from and where it is going."
+                                           FontSize="{StaticResource StrettoTextCaption}" TextAlignment="Center" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>

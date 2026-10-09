@@ -1,0 +1,12 @@
+<Project>
+  <!-- Settings every Stretto project shares, so the four project files only say what is
+       particular to them. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Authors>MarekCodex</Authors>
+    <Company>MarekCodex</Company>
+    <RepositoryUrl>https://github.com/Marek-Codex/Stretto-Download-Manager</RepositoryUrl>
+    <Product>Stretto</Product>
+  </PropertyGroup>
+</Project>

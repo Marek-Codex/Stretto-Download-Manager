@@ -1,0 +1,32 @@
+# Stretto code style. Kept deliberately small: it records the conventions the code
+# already follows, so an IDE formats new code the same way instead of fighting it.
+
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{js,json,html,css,md,yml,yaml}]
+indent_size = 2
+
+[*.{xaml,csproj,props,targets,slnx,xml,manifest}]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Files end without a namespace block.
+csharp_style_namespace_declarations = file_scoped:warning
+dotnet_sort_system_directives_first = false
+
+# Dead code is reported rather than tolerated.
+dotnet_diagnostic.IDE0051.severity = warning   # unused private member
+dotnet_diagnostic.IDE0052.severity = warning   # private member assigned but never read
+dotnet_diagnostic.IDE0060.severity = warning   # unused parameter
+dotnet_diagnostic.IDE0005.severity = warning   # unnecessary using
+dotnet_diagnostic.CS8019.severity = warning    # unnecessary using (compiler)

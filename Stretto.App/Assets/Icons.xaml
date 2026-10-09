@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Every glyph in the app resolves through this file.
+
+    Currently Segoe Fluent Icons, which ships with Windows 11: nothing to redistribute,
+    nothing to license, and it matches the other Plexus apps. Swapping the whole app to
+    Phosphor later means replacing the codepoints here and setting FontFamily on the
+    FontIcon style, with no hunting through MainWindow.xaml.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Navigation -->
+    <x:String x:Key="IconActive">&#xE896;</x:String>
+    <x:String x:Key="IconComplete">&#xE73E;</x:String>
+    <x:String x:Key="IconDocument">&#xE8A5;</x:String>
+    <x:String x:Key="IconMusic">&#xE8D6;</x:String>
+    <x:String x:Key="IconVideo">&#xE714;</x:String>
+    <x:String x:Key="IconCompressed">&#xE7B8;</x:String>
+    <x:String x:Key="IconImage">&#xE91B;</x:String>
+    <x:String x:Key="IconEBook">&#xE8F1;</x:String>
+    <x:String x:Key="IconApplication">&#xECAA;</x:String>
+    <x:String x:Key="IconFile">&#xE7C3;</x:String>
+    <x:String x:Key="IconOther">&#xE7C3;</x:String>
+
+    <!-- Toolbar -->
+    <x:String x:Key="IconNew">&#xE71B;</x:String>
+    <x:String x:Key="IconCopy">&#xE8C8;</x:String>
+    <x:String x:Key="IconBatch">&#xE8FD;</x:String>
+    <x:String x:Key="IconVideoGrab">&#xE714;</x:String>
+    <x:String x:Key="IconBrowse">&#xED25;</x:String>
+    <x:String x:Key="IconDelete">&#xE74D;</x:String>
+    <x:String x:Key="IconPause">&#xE769;</x:String>
+    <x:String x:Key="IconResume">&#xE768;</x:String>
+    <x:String x:Key="IconSearch">&#xE721;</x:String>
+    <x:String x:Key="IconMenu">&#xE700;</x:String>
+
+    <!-- Menu and status bar -->
+    <x:String x:Key="IconSettings">&#xE713;</x:String>
+    <x:String x:Key="IconFolder">&#xE838;</x:String>
+    <x:String x:Key="IconOpen">&#xE8E5;</x:String>
+    <x:String x:Key="IconClear">&#xE894;</x:String>
+    <x:String x:Key="IconAbout">&#xE946;</x:String>
+    <x:String x:Key="IconExit">&#xE7E8;</x:String>
+    <x:String x:Key="IconBrowser">&#xE774;</x:String>
+    <x:String x:Key="IconSpeed">&#xEC4A;</x:String>
+
+    <!-- Workspaces: the navigation pane -->
+    <x:String x:Key="IconTransfers">&#xE896;</x:String>
+    <x:String x:Key="IconLibrary">&#xE930;</x:String>
+    <x:String x:Key="IconQueues">&#xE9D5;</x:String>
+
+    <!-- Rows, selection and the details pane -->
+    <x:String x:Key="IconRetry">&#xE72C;</x:String>
+    <x:String x:Key="IconDetails">&#xE946;</x:String>
+    <x:String x:Key="IconSelectNone">&#xE8E6;</x:String>
+    <x:String x:Key="IconSort">&#xE8CB;</x:String>
+    <x:String x:Key="IconMore">&#xE712;</x:String>
+</ResourceDictionary>

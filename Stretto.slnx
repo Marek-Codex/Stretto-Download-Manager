@@ -1,0 +1,9 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="Stretto.Core/Stretto.Core.csproj" />
+  <Project Path="Stretto.App/Stretto.App.csproj" />
+  <Project Path="Stretto.Tests/Stretto.Tests.csproj" />
+  <Project Path="Stretto.Check/Stretto.Check.csproj" />
+</Solution>

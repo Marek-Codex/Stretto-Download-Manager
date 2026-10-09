@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Lets the tests shorten the stall timeout instead of waiting 30 seconds. -->
+    <InternalsVisibleTo Include="Stretto.Tests" />
+    <InternalsVisibleTo Include="Waypoint.Check" />
+  </ItemGroup>
+
+</Project>

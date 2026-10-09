@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Stretto.App.Dialogs.QueueDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <Style x:Key="ToolButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="8,5" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+            <Style x:Key="DayToggle" TargetType="ToggleButton">
+                <Setter Property="MinWidth" Value="44" />
+                <Setter Property="Padding" Value="0,5" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="CornerRadius" Value="6" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- A queue is a small workspace: the queues down the side, the chosen one beside them. -->
+    <Grid Width="660" Height="380" ColumnSpacing="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="170" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══ Queue list ═══ -->
+        <Grid RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ListView x:Name="QueueList" SelectionChanged="Queue_SelectionChanged"
+                      ScrollViewer.HorizontalScrollMode="Disabled"
+                      Style="{StaticResource StrettoDialogList}" Padding="2">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Spacing="1" Padding="0,4">
+                            <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding StateText}" FontSize="10.5" Opacity="0.55" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <TextBlock x:Name="QueueListEmpty" Text="No queues" FontSize="12" Opacity="0.45"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2">
+                <Button x:Name="NewQueueButton" Click="NewQueue_Click" Style="{StaticResource ToolButton}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="12" />
+                        <TextBlock Text="New queue" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="DeleteQueueButton" Click="DeleteQueue_Click" Style="{StaticResource ToolButton}"
+                        ToolTipService.ToolTip="Delete queue">
+                    <FontIcon Glyph="{StaticResource IconDelete}" FontSize="13" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ═══ Selected queue ═══ -->
+        <Grid Grid.Column="1">
+            <Grid x:Name="DetailPanel" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Queue actions live with the queue name: they start and stop the queue
+                     itself, not the file picked in the list. -->
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="DetailTitle" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="DetailState" FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button x:Name="StartQueueButton" Click="StartQueue_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,5">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="{StaticResource IconResume}" FontSize="12" />
+                                <TextBlock Text="Start" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="PauseQueueButton" Click="PauseQueue_Click" Padding="12,5">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="{StaticResource IconPause}" FontSize="12" />
+                                <TextBlock Text="Stop" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <SelectorBar x:Name="Tabs" Grid.Row="1" SelectionChanged="Tabs_SelectionChanged" Margin="-4,0,0,0">
+                    <SelectorBarItem x:Name="FilesTabItem" Text="Files" IsSelected="True" />
+                    <SelectorBarItem x:Name="ScheduleTabItem" Text="Schedule" />
+                </SelectorBar>
+
+                <!-- ═══ Files ═══ -->
+                <Grid x:Name="FilesPanel" Grid.Row="2" RowSpacing="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- One grid for headers and rows so the columns line up. -->
+                    <Border BorderThickness="1" BorderBrush="{StaticResource StrettoCardBorderBrush}"
+                            Background="{StaticResource StrettoCardBrush}" CornerRadius="8" Padding="10,4">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto">
+                            <Grid x:Name="FileGrid" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="90" />
+                                </Grid.ColumnDefinitions>
+                            </Grid>
+                        </ScrollViewer>
+                    </Border>
+
+                    <StackPanel x:Name="FileListEmpty" Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                IsHitTestVisible="False" Visibility="Collapsed">
+                        <TextBlock Text="No files in this queue" FontSize="12.5" Opacity="0.6" HorizontalAlignment="Center" />
+                        <TextBlock Text="Add downloads to run them one after another." FontSize="11.5" Opacity="0.45" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2">
+                        <Button x:Name="AddFilesButton" Click="AddFiles_Click" Style="{StaticResource ToolButton}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE710;" FontSize="12" />
+                                <TextBlock Text="Add downloads" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="RemoveFileButton" Click="RemoveFile_Click" IsEnabled="False" Style="{StaticResource ToolButton}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE738;" FontSize="12" />
+                                <TextBlock Text="Remove" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MoveUpButton" Click="MoveUp_Click" IsEnabled="False" Style="{StaticResource ToolButton}"
+                                ToolTipService.ToolTip="Move up">
+                            <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                        </Button>
+                        <Button x:Name="MoveDownButton" Click="MoveDown_Click" IsEnabled="False" Style="{StaticResource ToolButton}"
+                                ToolTipService.ToolTip="Move down">
+                            <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ═══ Schedule ═══ -->
+                <StackPanel x:Name="SchedulePanel" Grid.Row="2" Spacing="12" Visibility="Collapsed">
+                    <ToggleSwitch x:Name="SchedulerEnabled" Header="Run this queue on a timetable" Toggled="Scheduler_Toggled"
+                                  OnContent="On" OffContent="Off" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TimePicker x:Name="StartTime" Header="Start at" ClockIdentifier="24HourClock" MinuteIncrement="5" MinWidth="0" />
+                        <TimePicker x:Name="StopTime" Header="Stop at" ClockIdentifier="24HourClock" MinuteIncrement="5" MinWidth="0" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <CheckBox x:Name="DailyCheck" Content="Every day" Click="Daily_Click" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <ToggleButton x:Name="MonCheck" Content="Mon" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                            <ToggleButton x:Name="TueCheck" Content="Tue" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                            <ToggleButton x:Name="WedCheck" Content="Wed" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                            <ToggleButton x:Name="ThuCheck" Content="Thu" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                            <ToggleButton x:Name="FriCheck" Content="Fri" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                            <ToggleButton x:Name="SatCheck" Content="Sat" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                            <ToggleButton x:Name="SunCheck" Content="Sun" Click="Day_Click" Style="{StaticResource DayToggle}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock x:Name="ScheduleSummary" FontSize="11.5" Opacity="0.65" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Shown when there are no queues at all -->
+            <StackPanel x:Name="NoQueues" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="No queues yet" FontSize="14" HorizontalAlignment="Center" Opacity="0.7" />
+                <TextBlock Text="A queue runs its downloads one after another, and can start and stop on a timetable."
+                           FontSize="12" HorizontalAlignment="Center" Opacity="0.5" TextWrapping="Wrap"
+                           TextAlignment="Center" MaxWidth="300" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>
