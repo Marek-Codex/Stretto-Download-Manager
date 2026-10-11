@@ -1,8 +1,3 @@
-using Stretto.App.Models;
-using Stretto.Core;
-using System.Collections.ObjectModel;
-using System.Net;
-
 namespace Stretto.App.Services;
 
 /// <summary>How a new download should be set up. Mirrors the choices on the New dialog.</summary>

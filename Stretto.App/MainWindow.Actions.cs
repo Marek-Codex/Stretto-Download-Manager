@@ -67,8 +67,6 @@ public sealed partial class MainWindow
 
     private void PauseAll_Click(object sender, RoutedEventArgs e) => _downloads.PauseAll();
 
-    private async void Queues_Click(object sender, RoutedEventArgs e) => await ShowQueuesAsync();
-
     /// <summary>Queues are a page now. Still a Task, so the callers that awaited the old
     /// window read the same.</summary>
     private Task ShowQueuesAsync()

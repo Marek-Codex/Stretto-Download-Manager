@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Stretto.App.Dialogs;
 using Stretto.App.Models;
 using Stretto.App.Services;
@@ -1192,8 +1191,6 @@ public sealed partial class MainWindow : Window
     // ═══════════════════════════════════════
     // ═══ Menu
     // ═══════════════════════════════════════
-
-    private async void Settings_Click(object sender, RoutedEventArgs e) => await OpenSettingsAsync();
 
     /// <summary>
     /// Browser monitoring opens the settings section of that name, not the setup wizard.
