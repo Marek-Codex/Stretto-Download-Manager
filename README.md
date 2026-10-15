@@ -56,8 +56,8 @@ Settings → Components & about. Plain downloads need neither.
 | `Stretto.App` | The WinUI 3 desktop app. |
 | `Stretto.Tests` | Engine tests, run against a real local server. |
 | `Stretto.Check` | A command-line harness for trying the engine by hand. |
-| `extensions/` | The Chromium and Firefox extensions. |
-| `tools/` | The deterministic test server and helper scripts. |
+| `extensions/` | The Chromium and Firefox extensions; see [extensions/README.md](extensions/README.md). |
+| `tools/` | The deterministic test server and helper scripts; see [tools/README.md](tools/README.md). |
 | `docs/` | Architecture notes and research. |
 
 ## Testing
@@ -110,3 +110,8 @@ the full speed of the line.
 
 - [Architecture and design notes](docs/ARCHITECTURE.md): how each part works and why
 - [XDM gap audit](docs/XDM-GAP-AUDIT.md) and [XDM research](docs/XDM-RESEARCH.md)
+- [UI identity audit](docs/UI-IDENTITY-AUDIT.md): which parts of the interface are just a download manager, which are just WinUI, and which read as XDM in WinUI 3
+
+## License
+
+All rights reserved for now; see [LICENSE](LICENSE). The app depends on the Windows App SDK and one Microsoft cryptography package, which keep their own licenses.
