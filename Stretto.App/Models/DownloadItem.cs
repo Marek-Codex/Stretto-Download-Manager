@@ -239,8 +239,6 @@ public sealed class DownloadItem : INotifyPropertyChanged
     public bool CanPause => Status is DownloadStatus.Downloading or DownloadStatus.Queued;
     public bool CanResume => Status is DownloadStatus.Pending or DownloadStatus.Paused or DownloadStatus.Failed;
 
-    public string DateText => Added.LocalDateTime.ToString("dd MMM HH:mm");
-
     public string SizeText => TotalBytes is > 0 ? FormatBytes(TotalBytes.Value) : "—";
 
     public string PercentText => ProgressOverride is not null || TotalBytes is > 0 ? $"{Progress:F0}%" : "—";
