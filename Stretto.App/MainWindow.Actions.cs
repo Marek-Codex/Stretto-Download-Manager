@@ -85,7 +85,7 @@ public sealed partial class MainWindow
             return;
 
         var row = FindAncestor<ListViewItem>(source);
-        if (row?.Content is not DownloadItem item)
+        if (row?.Content is not DownloadItem)
             return;
 
         // Right-clicking an already selected row preserves an extended selection;

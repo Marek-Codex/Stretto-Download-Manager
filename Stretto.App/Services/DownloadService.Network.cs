@@ -28,7 +28,7 @@ public sealed partial class DownloadService
     private (DownloadNetwork Network, bool Owned) NetworkFor(DownloadItem item)
     {
         var login = ResolveLogin(item);
-        if (item.ProxyModeOverride is not { } mode && login is null)
+        if (item.ProxyModeOverride is null && login is null)
             return (_network, false);
 
         var route = item.ProxyModeOverride is { } overrideMode
