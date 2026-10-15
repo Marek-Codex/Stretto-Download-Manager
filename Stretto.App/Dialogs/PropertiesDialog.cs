@@ -255,6 +255,8 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
         return headers.ToString().TrimEnd();
     }
 
+    private readonly bool _embedded;
+
     /// <summary>Adds one label and value row to the sheet, skipping an empty value.</summary>
     /// <param name="sheet">The two-column grid the rows go into.</param>
     /// <param name="label">The left-hand caption.</param>
@@ -262,8 +264,6 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
     /// <param name="mono">Monospaced, for addresses and headers.</param>
     /// <param name="maxLines">Signed download links run to a dozen lines; three is enough to
     /// recognise one, and Copy address in the footer takes the whole thing.</param>
-    private readonly bool _embedded;
-
     private void Add(Grid sheet, string label, string? value, bool mono = false, int maxLines = 0)
     {
         if (string.IsNullOrWhiteSpace(value))
