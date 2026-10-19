@@ -66,12 +66,22 @@ public static partial class FileNaming
         return title.Length == 0 ? original : $"{title}.{extension}";
     }
 
-    /// <summary>A page title as a file name: no characters Windows refuses, tidy spaces, not too long.</summary>
+    /// <summary>
+    /// A page title as a file name that no program will complain about: letters, digits and
+    /// hyphens stay (in any language), apostrophes disappear, and any other run of characters
+    /// -- spaces, punctuation, symbols -- becomes one underscore. "Funny Cat Video, Part 2!"
+    /// is "Funny_Cat_Video_Part_2". Not too long, and never starting or ending on a separator.
+    /// </summary>
     public static string Sanitize(string title)
     {
-        var invalid = Path.GetInvalidFileNameChars();
-        var cleaned = new string(title.Select(c => invalid.Contains(c) ? ' ' : c).ToArray());
-        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim().TrimEnd('.', ' ');
-        return cleaned.Length > 120 ? cleaned[..120].TrimEnd() : cleaned;
+        // " - " between words is a separator, not part of a word ("Cats - Dogs" is Cats_Dogs).
+        var text = Regex.Replace(title.Replace("'", "").Replace("\u2019", ""), @"\s+[-\u2013\u2014]\s+", "_");
+
+        var builder = new System.Text.StringBuilder(text.Length);
+        foreach (var c in text)
+            builder.Append(char.IsLetterOrDigit(c) || c == '-' ? c : '_');
+
+        var cleaned = Regex.Replace(builder.ToString(), "_{2,}", "_").Trim('_', '-');
+        return cleaned.Length > 120 ? cleaned[..120].TrimEnd('_', '-') : cleaned;
     }
 }

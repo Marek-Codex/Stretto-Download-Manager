@@ -8,7 +8,7 @@ public static class FilePaths
     /// <paramref name="isOwnPartial"/> says the file already there is this download's own work
     /// in progress, in which case it is resumed rather than avoided.
     ///
-    /// With a <paramref name="tag"/> the first try is "name [tag].ext" -- a mark that says
+    /// With a <paramref name="tag"/> the first try is "name_tag.ext" -- a mark that says
     /// which source it came from -- and numbering only starts if that is taken as well.
     /// </summary>
     public static string ClashFree(
@@ -24,7 +24,7 @@ public static class FilePaths
 
         if (!string.IsNullOrEmpty(tag))
         {
-            stem = $"{stem} [{tag}]";
+            stem = $"{stem}_{tag}";
             var tagged = Path.Combine(directory, stem + extension);
             if (!File.Exists(tagged))
                 return tagged;

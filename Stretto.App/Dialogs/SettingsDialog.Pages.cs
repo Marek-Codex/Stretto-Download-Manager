@@ -31,7 +31,7 @@ public sealed partial class SettingsDialog
             StackRow("Download folder", null, WithButton(_folderBox, PushButton("Browse", BrowseFolder_Click))),
             Row("Sort into subfolders by file type", "Uses the folders set for each category below.", _sortByType),
             Row("Overwrite a file that already exists", "When off, a clashing name is saved as \"name (2).ext\".", _overwrite),
-            Row("Tell renamed videos apart by source", "A video named from its page that clashes gets a short tag from its original file name, like \"Title [26e2fb].mp4\". Other downloads get a number.", _tagClashes),
+            Row("Tell renamed videos apart by source", "A video named from its page that clashes gets a short tag from its original file name, like \"Title_26e2fb.mp4\". Other downloads get a number.", _tagClashes),
             Row("Name videos picked in the popup after", "Only videos you send from the popup or grab in the app. Downloads the browser starts keep their names.", _nameFrom),
             Row("Use the server's date on saved files", null, _serverTimestamp));
 

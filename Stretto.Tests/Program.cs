@@ -261,10 +261,10 @@ public static class Program
         File.WriteAllText(System.IO.Path.Combine(folder.Path, "Cat.mp4"), "x");
 
         var first = FilePaths.ClashFree(folder.Path, "Cat.mp4", false, tag: "a8f3k2");
-        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat [a8f3k2].mp4"), first, "tag, not a number");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat_a8f3k2.mp4"), first, "tag, not a number");
 
         File.WriteAllText(first, "x");
-        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat [a8f3k2] (2).mp4"),
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat_a8f3k2 (2).mp4"),
             FilePaths.ClashFree(folder.Path, "Cat.mp4", false, tag: "a8f3k2"), "numbering only after the tagged name is taken too");
         Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat (2).mp4"),
             FilePaths.ClashFree(folder.Path, "Cat.mp4", false), "no tag keeps the number");
@@ -281,15 +281,20 @@ public static class Program
         string? Pick(string? original, string? title, NameSource source = NameSource.Smart, Uri? url = null) =>
             FileNaming.Choose(original, url ?? cdn, title, source, VideoTypes);
 
-        Assert.Equal("Funny Cat Video.mp4", Pick("26e2fb0b265b99d.mp4", "Funny Cat Video"), "a hash name gets the title");
-        Assert.Equal("Funny Cat Video.mp4", Pick(null, "Funny Cat Video"), "no browser name falls back to the address's");
+        Assert.Equal("Funny_Cat_Video.mp4", Pick("26e2fb0b265b99d.mp4", "Funny Cat Video"), "a hash name gets the title, with underscores");
+        Assert.Equal("Funny_Cat_Video.mp4", Pick(null, "Funny Cat Video"), "no browser name falls back to the address's");
         Assert.Equal("Home Movie.mp4", Pick("Home Movie.mp4", "Funny Cat Video"), "Smart keeps a name that reads like words");
-        Assert.Equal("Funny Cat Video.mp4", Pick("Home Movie.mp4", "Funny Cat Video", NameSource.Title), "Title always uses the page");
+        Assert.Equal("Funny_Cat_Video.mp4", Pick("Home Movie.mp4", "Funny Cat Video", NameSource.Title), "Title always uses the page");
         Assert.Equal("26e2fb0b265b99d.mp4", Pick("26e2fb0b265b99d.mp4", "Funny Cat Video", NameSource.File), "File never does");
         Assert.Equal("26e2fb0b265b99d.mp4", Pick("26e2fb0b265b99d.mp4", null), "no title keeps the name");
         Assert.Equal("26e2fb0b265b99d.mp4", Pick("26e2fb0b265b99d.mp4", "   "), "a blank title keeps the name");
         Assert.Equal("report.zip", Pick("report.zip", "Funny Cat Video"), "only video is renamed");
-        Assert.Equal("Cats Dogs Birds.mp4", Pick("26e2fb0b265b99d.mp4", "Cats: Dogs/Birds?"), "characters Windows refuses are dropped");
+        Assert.Equal("Cats_Dogs_Birds.mp4", Pick("26e2fb0b265b99d.mp4", "Cats: Dogs/Birds?"), "characters Windows refuses become underscores");
+        Assert.Equal("Funny_Cat_Video_Part_2", FileNaming.Sanitize("Funny Cat Video, Part 2!"), "punctuation runs become one underscore");
+        Assert.Equal("Dont_Stop_Spider-Man", FileNaming.Sanitize("Don't Stop - Spider-Man"), "apostrophes vanish, a spaced dash is a separator, an inner hyphen stays");
+        Assert.Equal("Caf\u00e9_na\u00efve", FileNaming.Sanitize("Caf\u00e9 na\u00efve"), "letters in other languages stay");
+        Assert.Equal("a_b", FileNaming.Sanitize("__a   b__"), "no leading, trailing or doubled underscores");
+        Assert.Equal(120, FileNaming.Sanitize(new string('a', 300)).Length, "not too long");
         Assert.Equal("Show.m3u8", Pick(null, "Show", url: new Uri("https://x.com/v/abc/master.m3u8")), "a stream keeps its playlist ending");
         Assert.True(FileNaming.IsGeneric("26e2fb0b_9a1c4d5e.mp4"), "an id with underscores is still an id");
         Assert.False(FileNaming.IsGeneric("funny_cat_video.mp4"), "words with underscores are a name");
@@ -311,7 +316,7 @@ public static class Program
         };
 
         var named = MediaDownloadOptions.FromCandidate(sighting, new AppSettings());
-        Assert.Equal("Funny Cat Video.mp4", named.FileName, "named at download time");
+        Assert.Equal("Funny_Cat_Video.mp4", named.FileName, "named at download time");
         Assert.True(named.NamedFromTitle, "a clash on a renamed video is told apart with a tag");
         Assert.False(MediaDownloadOptions.FromCandidate(sighting with { PageTitle = null }, new AppSettings()).NamedFromTitle,
             "a name the server chose is not tagged");

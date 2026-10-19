@@ -145,7 +145,7 @@ public sealed class AppSettings
     /// <summary>False means a clashing name gets " (2)" rather than being replaced.</summary>
     public bool OverwriteExisting { get; set; }
 
-    /// <summary>A clashing name gets a short tag from where it came from ("Title [a8f3k2]")
+    /// <summary>A clashing name gets a short tag from where it came from ("Title_a8f3k2")
     /// rather than a number. Only matters when <see cref="OverwriteExisting"/> is off.</summary>
     public bool TagClashingNames { get; set; } = true;
 
