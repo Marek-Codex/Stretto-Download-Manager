@@ -25,7 +25,7 @@ public enum Tool
 public static class ToolBox
 {
     /// <summary>Beside the settings rather than beside the executable, which may be read only.</summary>
-    public static string Directory { get; } = Path.Combine(DownloadStore.Directory, "tools");
+    public static string Directory => Path.Combine(DownloadStore.Directory, "tools");
 
     /// <summary>The single file yt-dlp release. Public domain, so no licence to carry.</summary>
     private const string YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";

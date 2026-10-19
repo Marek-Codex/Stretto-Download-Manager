@@ -43,6 +43,7 @@ public static class Program
         await runner.Run("picks a free name instead of overwriting", PicksFreeFileName);
         await runner.Run("reuses a file that is its own partial download", ReusesOwnPartial);
         await runner.Run("retries what can fix itself and not what cannot", ClassifiesRetries);
+        await runner.Run("runs the download service with no window", ServiceRunsHeadless);
         await runner.Run("opens every connection at once when not adaptive", FixedFanOutIsUnchanged);
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
@@ -194,6 +195,50 @@ public static class Program
         Assert.True(RetryPolicy.IsPermanent(new HttpRequestException("x", null, System.Net.HttpStatusCode.NotFound)), "404 will repeat");
         Assert.True(RetryPolicy.IsPermanent(new InvalidOperationException("html page")), "a sign-in page will repeat");
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The whole service, as a CLI or a watch-folder feature would host it: no UI thread, its
+    /// own data folder, and a serial context standing in for the dispatcher. The completion
+    /// event has to arrive on that context, which is what lets the service avoid locking.
+    /// </summary>
+    private static async Task ServiceRunsHeadless()
+    {
+        const long size = 3L * 1024 * 1024;
+
+        await using var server = await TestServer.StartAsync(NextPort(), size);
+        using var folder = new TempFolder();
+        using var context = new SerialSynchronizationContext();
+
+        var originalData = DownloadStore.Directory;
+        DownloadStore.Directory = System.IO.Path.Combine(folder.Path, "data");
+        try
+        {
+            var finished = new TaskCompletionSource<(DownloadItem Item, bool OnContext)>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var item = await context.InvokeAsync(() =>
+            {
+                var settings = new AppSettings { DownloadFolder = folder.Path, SortByType = false };
+                var service = new DownloadService(settings, context);
+                service.Completed += done => finished.TrySetResult((done, SynchronizationContext.Current == context));
+                service.Failed += failed => finished.TrySetException(new Exception(failed.Error ?? "failed"));
+
+                return service.Add(server.Url("headless.bin").ToString(),
+                    new DownloadOptions { Directory = folder.Path, Connections = 4 });
+            });
+
+            var (completed, onContext) = await finished.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(DownloadStatus.Complete, completed.Status, "final status");
+            Assert.True(ReferenceEquals(item, completed), "the event reports the item that was added");
+            Assert.True(onContext, "Completed should be raised on the service's context");
+            VerifyPattern(System.IO.Path.Combine(completed.TargetDirectory, completed.Name), size);
+        }
+        finally
+        {
+            DownloadStore.Directory = originalData;
+        }
     }
 
     private static async Task HashesFile()

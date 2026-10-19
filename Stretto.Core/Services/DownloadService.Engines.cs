@@ -1,6 +1,5 @@
-using Stretto.Core;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>The three engines besides the segmented HTTP one: yt-dlp, FTP and ffmpeg streams.</summary>
 public sealed partial class DownloadService

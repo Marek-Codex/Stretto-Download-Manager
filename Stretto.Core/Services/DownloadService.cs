@@ -1,7 +1,6 @@
-using Stretto.Core;
 using System.Collections.ObjectModel;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>Owns the queue and drives <see cref="SegmentedDownloader"/> on its behalf.</summary>
 public sealed partial class DownloadService
@@ -12,13 +11,22 @@ public sealed partial class DownloadService
     private readonly FtpDownloader _ftp = new();
     private readonly BandwidthLimiter _bandwidthLimiter = new();
 
+    private readonly SynchronizationContext? _context;
     private DownloadNetwork _network;
 
     public QueueService Queues { get; } = new();
 
-    public DownloadService(AppSettings settings)
+    /// <summary>
+    /// <paramref name="context"/> is where the service does its work: transfers report back
+    /// to it, and state is only touched from it, so nothing here needs a lock. The app passes
+    /// nothing and gets the UI thread's, which is current when the window builds the service.
+    /// A host with no UI thread passes a <see cref="SerialSynchronizationContext"/> and makes
+    /// its own calls to the service on that same context.
+    /// </summary>
+    public DownloadService(AppSettings settings, SynchronizationContext? context = null)
     {
         _settings = settings;
+        _context = context ?? SynchronizationContext.Current;
         _network = CreateNetwork(settings);
         _bandwidthLimiter.SetLimit(settings.SpeedLimitBytesPerSecond);
     }
@@ -245,7 +253,24 @@ public sealed partial class DownloadService
     /// sign-in page, which fail the same way every time and need a person.
     /// </summary>
     private void ScheduleRetry(DownloadItem item, Exception exception) =>
-        _ = RetryAfterDelayAsync(item, exception);
+        _ = InContext(() => RetryAfterDelayAsync(item, exception));
+
+    /// <summary>
+    /// Starts <paramref name="start"/> with the service's context current. An async method
+    /// takes the context it will resume on from whatever is current at each await, so this is
+    /// what makes every continuation after the first await land back on it. When the caller is
+    /// already on that context, which is always the case in the app, this changes nothing.
+    /// </summary>
+    private Task InContext(Func<Task> start)
+    {
+        var caller = SynchronizationContext.Current;
+        if (_context is null || caller == _context)
+            return start();
+
+        SynchronizationContext.SetSynchronizationContext(_context);
+        try { return start(); }
+        finally { SynchronizationContext.SetSynchronizationContext(caller); }
+    }
 
     /// <summary>
     /// A Task, not async void: nothing awaits it, but an exception after the delay is caught
@@ -339,7 +364,7 @@ public sealed partial class DownloadService
 
         // Fire and forget by design: the item carries all the state the UI binds to,
         // and every outcome is written back onto it below.
-        _ = RunAsync(item, item.Cancellation.Token);
+        _ = InContext(() => RunAsync(item, item.Cancellation.Token));
     }
 
     private async Task RunAsync(DownloadItem item, CancellationToken ct)
@@ -350,8 +375,8 @@ public sealed partial class DownloadService
         // Either way the probe and transfer share one client, so they agree on routing.
         var (network, owned) = NetworkFor(item);
 
-        // Progress<T> captures this (UI) SynchronizationContext, so handlers land back on
-        // the UI thread without any dispatcher juggling at the call sites.
+        // Progress<T> captures the service's SynchronizationContext, so handlers land back on
+        // it (the UI thread, in the app) without any dispatcher juggling at the call sites.
         var progress = new Progress<ProgressSnapshot>(p =>
         {
             item.BytesCompleted = p.BytesCompleted;

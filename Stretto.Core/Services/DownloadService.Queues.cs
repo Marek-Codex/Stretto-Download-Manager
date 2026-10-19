@@ -1,6 +1,5 @@
-using Stretto.Core;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>Releasing and pausing queues, and the timetable that turns them on and off.</summary>
 public sealed partial class DownloadService

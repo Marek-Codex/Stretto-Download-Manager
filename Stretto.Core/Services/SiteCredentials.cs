@@ -1,3 +1,6 @@
+// Saved logins are protected with DPAPI, so they only work on Windows. Core as a whole is
+// plain net10.0 and the rest of it is portable; this is the one file that is not.
+#pragma warning disable CA1416
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;

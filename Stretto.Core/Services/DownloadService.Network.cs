@@ -1,7 +1,6 @@
-using Stretto.Core;
 using System.Net;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>The HTTP stack: building clients, proxy routes and per-site credentials.</summary>
 public sealed partial class DownloadService

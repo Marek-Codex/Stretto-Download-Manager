@@ -10,7 +10,11 @@ namespace Stretto.Core;
 /// </summary>
 public sealed class DownloadStore
 {
-    public static string Directory { get; } = Path.Combine(
+    /// <summary>
+    /// Where settings, the download list, queues, logins and tools live. Settable so a test
+    /// or a headless host can use its own folder; set it before anything reads or writes.
+    /// </summary>
+    public static string Directory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Stretto");
 
     private static string ListPath => Path.Combine(Directory, "downloads.json");

@@ -1,6 +1,5 @@
-using Stretto.Core;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>Maps a detected media candidate to the shared download engine's options.</summary>
 public static class MediaDownloadOptions
