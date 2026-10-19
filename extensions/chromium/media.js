@@ -302,8 +302,13 @@ async function retitleMedia(tabId) {
   const names = new Map();
   for (const m of mine) names.set(m.key || m.url, await nameFor(m));
 
+  const changed = mine.filter((m) => m.kind !== 'segment' && names.get(m.key || m.url) !== m.name);
+
   await updateMedia((current) => current.map((m) =>
     m.tabId === tabId && names.has(m.key || m.url) ? { ...m, name: names.get(m.key || m.url) } : m));
+
+  // The app's grabber keeps the name it was first told, so tell it the new one.
+  for (const m of changed) void reportMedia({ ...m, name: names.get(m.key || m.url) });
 }
 
 api.tabs.onUpdated.addListener((tabId, change) => {

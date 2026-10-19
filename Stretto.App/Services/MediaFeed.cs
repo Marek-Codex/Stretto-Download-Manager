@@ -61,8 +61,17 @@ public sealed class MediaFeed
             || uri.Scheme is not ("http" or "https"))
             return;
 
-        if (Items.Any(m => m.Url == report.Url))
+        // The same video reported again is usually the extension catching up: the page's
+        // title arrives after the first sighting, and the name it sends changes from the
+        // address's own to the title. Take the newer name, keep everything else.
+        var seen = Items.ToList().FindIndex(m => m.Url == report.Url);
+        if (seen >= 0)
+        {
+            if (!string.IsNullOrWhiteSpace(report.Name) && report.Name != uri.Host && report.Name != Items[seen].Name)
+                Items[seen] = Items[seen] with { Name = report.Name };
+
             return;
+        }
 
         Items.Insert(0, new FedMedia
         {
