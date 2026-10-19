@@ -163,6 +163,14 @@
 
                 <!-- Library's file-type filter. Built from the categories table, so a category
                      added in Settings appears here too. -->
+                <!-- Transfers' state filter: what is running by default, with the rest a click
+                     away. Failed and paused already live here; finished ones are opt-in. -->
+                <ScrollViewer x:Name="StateBar" Grid.Row="1" Visibility="Collapsed" Padding="24,4,24,2"
+                              HorizontalScrollBarVisibility="Hidden" HorizontalScrollMode="Enabled"
+                              VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="StatePanel" Orientation="Horizontal" Spacing="6" />
+                </ScrollViewer>
+
                 <ScrollViewer x:Name="ChipBar" Grid.Row="1" Visibility="Collapsed" Padding="24,4,24,2"
                               HorizontalScrollBarVisibility="Hidden" HorizontalScrollMode="Enabled"
                               VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">

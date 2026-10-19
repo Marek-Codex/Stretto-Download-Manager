@@ -67,6 +67,9 @@ public sealed partial class MainWindow : Window
     /// <summary>Transfers, Library or Queues.</summary>
     private string _view = "Transfers";
 
+    /// <summary>Transfers' state filter: Active (the default), Attention, Paused, Finished or All.</summary>
+    private string _stateFilter = "Active";
+
     /// <summary>Library's file-type chip. Null is All.</summary>
     private string? _category;
 
@@ -178,6 +181,7 @@ public sealed partial class MainWindow : Window
             RootGrid.Loaded += async (_, _) => await AskAboutStartupAsync();
         RootGrid.Loaded += async (_, _) => await CheckForUpdatesQuietlyAsync();
         RefreshCategoryNav();
+        BuildStateChips();
         ApplySortChoice();
         DetailsToggle.IsChecked = _settings.ShowDetailsPane;
         Nav.SelectedItem = TransfersNavItem;
@@ -380,7 +384,14 @@ public sealed partial class MainWindow : Window
         {
             // Everything not finished, failures included: a failed download has to stay in
             // sight or its error and Retry are unreachable.
-            "Transfers" => _downloads.Items.Where(i => i.IsActive),
+            "Transfers" => _stateFilter switch
+            {
+                "Attention" => _downloads.Items.Where(i => i.Status == DownloadStatus.Failed),
+                "Paused" => _downloads.Items.Where(i => i.Status == DownloadStatus.Paused),
+                "Finished" => _downloads.Items.Where(i => i.Status == DownloadStatus.Complete),
+                "All" => _downloads.Items,
+                _ => _downloads.Items.Where(i => i.IsActive),
+            },
 
             // All is the recent run of finished files; older ones age out of it but stay
             // under their file-type chip. Nothing is deleted either way.
@@ -418,8 +429,9 @@ public sealed partial class MainWindow : Window
                 DownloadStatus.Downloading => "Downloading",
                 DownloadStatus.Failed => "Needs attention",
                 DownloadStatus.Paused => "Paused",
+                DownloadStatus.Complete => "Finished",
                 _ => "Up next",
-            }, ["Downloading", "Needs attention", "Up next", "Paused"]);
+            }, ["Downloading", "Needs attention", "Up next", "Paused", "Finished"]);
         }
 
         static DateTimeOffset Finished(DownloadItem i) => i.CompletedAt ?? i.Added;
@@ -566,6 +578,15 @@ public sealed partial class MainWindow : Window
                            : "Paste a link with Ctrl+V. Connect your browser and its downloads will arrive here on their own.",
                  "Add download", browserOn ? null : "Connect a browser"),
 
+            _ when _view == "Transfers" && _stateFilter != "Active" =>
+                ("IconTransfers", _stateFilter switch
+                {
+                    "Attention" => "Nothing needs attention",
+                    "Paused" => "Nothing is paused",
+                    "Finished" => "Nothing has finished yet",
+                    _ => "No transfers",
+                }, "Pick another filter above to see the rest.", "Show active", null),
+
             _ when _view == "Transfers" =>
                 ("IconTransfers", "Nothing downloading", "Finished downloads are in Library.",
                  "Go to Library", null),
@@ -605,6 +626,7 @@ public sealed partial class MainWindow : Window
             case "Go to Library": ShowView("Library"); break;
             case "Go to Transfers": ShowView("Transfers"); break;
             case "Show all": _category = null; RefreshCategoryNav(); Refresh(); break;
+            case "Show active": _stateFilter = "Active"; BuildStateChips(); Refresh(); break;
         }
     }
 
@@ -727,6 +749,7 @@ public sealed partial class MainWindow : Window
 
         ViewTitleText.Text = _view;
         ChipBar.Visibility = _view == "Library" ? Visibility.Visible : Visibility.Collapsed;
+        StateBar.Visibility = _view == "Transfers" ? Visibility.Visible : Visibility.Collapsed;
         SortButton.Visibility = _view == "Library" ? Visibility.Visible : Visibility.Collapsed;
         CommandBand.Visibility = queues ? Visibility.Collapsed : Visibility.Visible;
         ListArea.Visibility = queues ? Visibility.Collapsed : Visibility.Visible;
@@ -786,9 +809,79 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private static readonly (string Key, string Label, string Icon)[] StateChips =
+    [
+        ("Active", "Active", "IconTransfers"),
+        ("Attention", "Needs attention", "IconRetry"),
+        ("Paused", "Paused", "IconResume"),
+        ("Finished", "Finished", "IconFolder"),
+        ("All", "All", "IconLibrary"),
+    ];
+
+    private static bool InState(DownloadItem item, string state) => state switch
+    {
+        "Attention" => item.Status == DownloadStatus.Failed,
+        "Paused" => item.Status == DownloadStatus.Paused,
+        "Finished" => item.Status == DownloadStatus.Complete,
+        "All" => true,
+        _ => item.IsActive,
+    };
+
+    /// <summary>Builds Transfers' state chips. Counts are kept up to date by UpdateStateChipCounts.</summary>
+    private void BuildStateChips()
+    {
+        StatePanel.Children.Clear();
+        foreach (var (key, label, icon) in StateChips)
+        {
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 };
+            content.Children.Add(new FontIcon { Glyph = Application.Current.Resources[icon] as string ?? "", FontSize = 13 });
+            content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(new TextBlock { Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
+
+            var chip = new ToggleButton
+            {
+                Content = content,
+                Tag = key,
+                IsChecked = key == _stateFilter,
+                CornerRadius = new CornerRadius(15),
+                Padding = new Thickness(12, 5, 12, 5),
+                FontSize = 12.5,
+            };
+            chip.Click += (_, _) =>
+            {
+                _stateFilter = key;
+                foreach (var other in StatePanel.Children.OfType<ToggleButton>())
+                    other.IsChecked = ReferenceEquals(other, chip);
+                DownloadList.SelectedItems.Clear();
+                Refresh();
+            };
+            StatePanel.Children.Add(chip);
+        }
+
+        UpdateStateChipCounts();
+    }
+
+    /// <summary>Counts on the state chips. Needs attention hides itself when nothing has failed.</summary>
+    private void UpdateStateChipCounts()
+    {
+        foreach (var chip in StatePanel.Children.OfType<ToggleButton>())
+        {
+            var key = (string)chip.Tag;
+            var count = _downloads.Items.Count(i => InState(i, key));
+
+            if (chip.Content is StackPanel panel && panel.Children.Count == 3 && panel.Children[2] is TextBlock number)
+                number.Text = count.ToString();
+
+            chip.Visibility = key == "Attention" && count == 0 && chip.IsChecked != true
+                ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
     /// <summary>Counts on the chips, so an empty type can be skipped without a click.</summary>
     private void UpdateChipCounts()
     {
+        UpdateStateChipCounts();
+
         if (_view != "Library") return;
 
         foreach (var chip in ChipPanel.Children.OfType<ToggleButton>())
