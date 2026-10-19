@@ -612,12 +612,6 @@ public sealed partial class DownloadService
         }
     }
 
-    public void RemoveCompleted()
-    {
-        foreach (var done in Items.Where(i => i.Status == DownloadStatus.Complete).ToList())
-            Items.Remove(done);
-    }
-
     private static string GuessName(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))

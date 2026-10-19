@@ -214,7 +214,7 @@
                             <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconFolder}" /></AppBarButton.Icon>
                         </AppBarButton>
                         <AppBarButton x:Name="ClearFinishedButton" Label="Clear list" Click="RemoveFinished_Click"
-                                      ToolTipService.ToolTip="Remove finished downloads from the list. Files stay on disk.">
+                                      ToolTipService.ToolTip="Clear the downloads shown here from the list. Asks first, and whether to delete the files too.">
                             <AppBarButton.Icon><FontIcon Glyph="{StaticResource IconClear}" /></AppBarButton.Icon>
                         </AppBarButton>
 

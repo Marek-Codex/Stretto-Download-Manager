@@ -1122,20 +1122,31 @@ public sealed partial class MainWindow : Window
         if (selection.Count == 0)
             return;
 
-        // Unticked by default: removing a row from the list is trivially undone by adding
-        // the link again, but erasing the bytes is not.
-        var deleteFiles = new CheckBox { Content = "Delete files from disk", IsChecked = false };
-
-        var form = new MessageWindowForm(
+        await RemoveWithPromptAsync(
+            selection,
             selection.Count == 1
                 ? $"Remove “{selection[0].Name}” from the list?"
                 : $"Remove these {selection.Count} downloads from the list?",
-            primaryText: "Delete", cancelText: "Cancel", extraContent: deleteFiles, width: 420);
+            selection.Count == 1 ? "Delete download" : "Delete downloads",
+            "Delete");
+    }
 
-        if (await ShowInWindowAsync(form, selection.Count == 1 ? "Delete download" : "Delete downloads") != ContentDialogResult.Primary)
+    /// <summary>
+    /// Asks before taking downloads off the list, and whether their files should go too.
+    /// Unticked by default: removing a row is trivially undone by adding the link again,
+    /// but erasing the bytes is not. Shared by Delete and Clear list so they ask alike.
+    /// </summary>
+    private async Task RemoveWithPromptAsync(List<DownloadItem> items, string question, string windowTitle, string primaryText)
+    {
+        var deleteFiles = new CheckBox { Content = "Delete files from disk", IsChecked = false };
+
+        var form = new MessageWindowForm(
+            question, primaryText: primaryText, cancelText: "Cancel", extraContent: deleteFiles, width: 420);
+
+        if (await ShowInWindowAsync(form, windowTitle) != ContentDialogResult.Primary)
             return;
 
-        foreach (var item in selection)
+        foreach (var item in items)
             _downloads.Remove(item, deleteFiles.IsChecked == true);
 
         _downloads.Queues.Prune(_downloads.Items);
@@ -1190,7 +1201,7 @@ public sealed partial class MainWindow : Window
 
         PauseAllButton.IsEnabled = _visible.Any(i => i.CanPause);
         ResumeAllButton.IsEnabled = _visible.Any(i => i.CanResume);
-        ClearFinishedButton.IsEnabled = _downloads.Items.Any(complete);
+        ClearFinishedButton.IsEnabled = _visible.Any(complete);
 
         Show(PauseButton, unfinished);
         Show(ResumeButton, unfinished);
@@ -1344,7 +1355,26 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void RemoveFinished_Click(object sender, RoutedEventArgs e) => _downloads.RemoveCompleted();
+    /// <summary>
+    /// Clears the list being looked at, not every finished download: with a file-type chip
+    /// or a search active, only those rows. It asks first, and offers to delete the files.
+    /// </summary>
+    private async void RemoveFinished_Click(object sender, RoutedEventArgs e)
+    {
+        var shown = _visible.Where(i => i.Status == DownloadStatus.Complete).ToList();
+        if (shown.Count == 0)
+            return;
+
+        var what = !string.IsNullOrWhiteSpace(_search) ? "matching "
+            : _category is not null ? $"{_category.ToLowerInvariant()} "
+            : "";
+
+        var question = shown.Count == 1
+            ? $"Clear the {what}download “{shown[0].Name}” from the list?"
+            : $"Clear {shown.Count} {what}downloads from the list?";
+
+        await RemoveWithPromptAsync(shown, question, "Clear list", "Clear");
+    }
 
     private async void About_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
         "Stretto Download Manager\n\n" +
