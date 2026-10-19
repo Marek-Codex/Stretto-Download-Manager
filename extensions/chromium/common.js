@@ -663,7 +663,7 @@ async function sendMedia({ url, tabUrl, tabId, kind }) {
   try {
     const accepted = await sendToApp(cfg, {
       url,
-      fileName: guessName(url),
+      fileName: await nameFor({ url, tabId }),
       cookie: (await cookieHeaderFor(url)) || null,
       referrer: tabUrl || null,
       userAgent: navigator.userAgent,

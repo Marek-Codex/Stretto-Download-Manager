@@ -196,17 +196,36 @@ async function nameFor(item) {
   const fromUrl = guessName(item.url);
   const generic = !/\.\w{2,5}$/.test(fromUrl)
     || /^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*\.(m3u8?|mpd)$/i.test(fromUrl);
-  if (!generic || item.tabId < 0) return fromUrl;
+  if (!generic || !(item.tabId >= 0)) return fromUrl;
 
   try {
     const tab = await api.tabs.get(item.tabId);
-    const title = (tab?.title || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const title = cleanTitle(tab?.title, tab?.url);
     if (!title) return fromUrl;
     const ext = extensionOf(item.url, '');
     return ext && ext !== fromUrl ? `${title}.${ext}` : title;
   } catch {
     return fromUrl;
   }
+}
+
+/**
+ * A tab title as a file name: no unread-count prefix like "(3) ", no " | Site" tail, and a
+ * " - Site" tail only when it names the page's own host, so "Spider-Man - Part 1" is safe.
+ */
+function cleanTitle(raw, pageUrl) {
+  let title = String(raw || '').replace(/^\(\d+\)\s*/, '');
+
+  let host = '';
+  try { host = new URL(pageUrl).hostname.replace(/^www\./, '').split('.')[0].toLowerCase(); } catch { /* no page */ }
+
+  const m = /^(.+)\s+(\||•|·|[-–—])\s+([^|•·\-–—]+)$/.exec(title);
+  if (m) {
+    const tail = m[3].toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (m[2] !== '-' && m[2] !== '–' && m[2] !== '—' || (host && tail.includes(host))) title = m[1];
+  }
+
+  return title.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
 async function recordMedia(item) {
