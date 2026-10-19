@@ -229,6 +229,15 @@ async function tabForPage(pageUrl) {
   }
 }
 
+/** The tab in front, in the window the person was last using. */
+async function activeTab() {
+  try {
+    return (await api.tabs.query({ active: true, lastFocusedWindow: true }))[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The name to send for a download the browser started, as opposed to a media sighting. The
  * page title is used for video files by the same rules as nameFor, so a download button on
@@ -244,7 +253,9 @@ async function captureNameFor(url, filename, referrer) {
   const isVideo = (cfg.rules?.videoTypes || []).some((t) => t && t.toLowerCase() === type);
   if (!isVideo || (nameFrom !== 'Title' && !isGenericName(name))) return filename || null;
 
-  const tab = await tabForPage(referrer);
+  // The tab the download came from if the referrer says, otherwise the tab being looked
+  // at: a download button that sends no referrer was, nearly always, clicked on that page.
+  const tab = (await tabForPage(referrer)) || (await activeTab());
   const title = cleanTitle(tab?.title, tab?.url);
   if (!title) return filename || null;
   return type ? `${title}.${type}` : title;
