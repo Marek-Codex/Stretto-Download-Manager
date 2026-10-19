@@ -132,23 +132,9 @@ public sealed class FtpDownloader
         return Finish(path, total, stopwatch, resumed: existing > 0, modified, request);
     }
 
-    private static string ResolvePath(DownloadRequest request, string name, FtpResumeState identity)
-    {
-        var path = Path.Combine(request.TargetDirectory, name);
-        if (request.Overwrite || !File.Exists(path) || TryLoadResumeState(path, identity) is not null)
-            return path;
-
-        var stem = Path.GetFileNameWithoutExtension(name);
-        var extension = Path.GetExtension(name);
-        for (var n = 2; n < 1000; n++)
-        {
-            var candidate = Path.Combine(request.TargetDirectory, $"{stem} ({n}){extension}");
-            if (!File.Exists(candidate))
-                return candidate;
-        }
-
-        return path;
-    }
+    private static string ResolvePath(DownloadRequest request, string name, FtpResumeState identity) =>
+        FilePaths.ClashFree(request.TargetDirectory, name, request.Overwrite,
+            path => TryLoadResumeState(path, identity) is not null);
 
     private static string StatePathFor(string path) => path + ".stretto.ftp";
 

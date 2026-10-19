@@ -387,28 +387,12 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
     /// pushes the download to "name (2).ext" -- unless a resume sidecar sits beside it, which
     /// means those bytes are this download's own work in progress rather than someone else's file.
     /// </summary>
-    private static string ResolvePath(DownloadRequest request, string fileName, RemoteFileInfo info)
-    {
-        var path = Path.Combine(request.TargetDirectory, fileName);
-
+    private static string ResolvePath(DownloadRequest request, string fileName, RemoteFileInfo info) =>
         // A sidecar only earns the original path if it is a usable resume point for this
         // exact remote file. A stale sidecar beside an unrelated file must not turn the
         // no-overwrite path into an overwrite.
-        if (request.Overwrite || !File.Exists(path) || DownloadState.TryLoad(path, info) is not null)
-            return path;
-
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-
-        for (var n = 2; n < 1000; n++)
-        {
-            var candidate = Path.Combine(request.TargetDirectory, $"{stem} ({n}){extension}");
-            if (!File.Exists(candidate))
-                return candidate;
-        }
-
-        return path;
-    }
+        FilePaths.ClashFree(request.TargetDirectory, fileName, request.Overwrite,
+            path => DownloadState.TryLoad(path, info) is not null);
 
     /// <summary>Even split, but never into pieces so small that connection setup dominates.</summary>
     public static List<Segment> PlanSegments(long total, int requested)

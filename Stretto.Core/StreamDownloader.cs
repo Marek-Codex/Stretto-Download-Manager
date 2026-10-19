@@ -361,23 +361,8 @@ public sealed partial class StreamDownloader
         }
     }
 
-    private static string ResolveOutputPath(string directory, string name, bool overwrite)
-    {
-        var path = Path.Combine(directory, name);
-        if (overwrite || !File.Exists(path))
-            return path;
-
-        var stem = Path.GetFileNameWithoutExtension(name);
-        var extension = Path.GetExtension(name);
-        for (var n = 2; n < 1000; n++)
-        {
-            var candidate = Path.Combine(directory, $"{stem} ({n}){extension}");
-            if (!File.Exists(candidate))
-                return candidate;
-        }
-
-        return path;
-    }
+    private static string ResolveOutputPath(string directory, string name, bool overwrite) =>
+        FilePaths.ClashFree(directory, name, overwrite);
 
     private static string SafeFileName(string name)
     {
