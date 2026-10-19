@@ -192,10 +192,58 @@ function mediaKey(url) {
  * or manifest.mpd, and players' media URLs are often bare ids; the page title says what
  * the video actually is. XDM names streams this way. A real file name wins when there is one.
  */
+/**
+ * A file name that says nothing about what the file is: no extension, a stream playlist's
+ * stock name, or an id (digits, or a hex string or UUID). Sites that serve a video as
+ * 48213977.mp4 are the common case, and the page title is the only readable name there is.
+ */
+function isGenericName(name) {
+  if (!/\.\w{2,5}$/.test(name)) return true;
+  if (/^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*\.(m3u8?|mpd)$/i.test(name)) return true;
+
+  const stem = name.replace(/\.\w{2,5}$/, '');
+  return /^\d+$/.test(stem) || /^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i.test(stem);
+}
+
+/** The tab showing a page, by address with the fragment ignored. The active one wins. */
+async function tabForPage(pageUrl) {
+  if (!pageUrl) return null;
+  const bare = (address) => { try { const u = new URL(address); u.hash = ''; return u.href; } catch { return ''; } };
+  const want = bare(pageUrl);
+  if (!want) return null;
+
+  try {
+    const hits = (await api.tabs.query({})).filter((t) => bare(t.url || '') === want);
+    return hits.find((t) => t.active) || hits[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The name to send for a download the browser started, as opposed to a media sighting. The
+ * page title is used for video files by the same rules as nameFor, so a download button on
+ * a video page names the file after the video. Anything that is not video keeps its name.
+ */
+async function captureNameFor(url, filename, referrer) {
+  const cfg = await config();
+  const nameFrom = cfg.rules?.nameFrom || 'Smart';
+  if (nameFrom === 'File') return filename || null;
+
+  const name = filename || guessName(url);
+  const type = extensionOf(url, filename);
+  const isVideo = (cfg.rules?.videoTypes || []).some((t) => t && t.toLowerCase() === type);
+  if (!isVideo || (nameFrom !== 'Title' && !isGenericName(name))) return filename || null;
+
+  const tab = await tabForPage(referrer);
+  const title = cleanTitle(tab?.title, tab?.url);
+  if (!title) return filename || null;
+  return type ? `${title}.${type}` : title;
+}
+
 async function nameFor(item) {
   const fromUrl = guessName(item.url);
-  const generic = !/\.\w{2,5}$/.test(fromUrl)
-    || /^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*\.(m3u8?|mpd)$/i.test(fromUrl);
+  const generic = isGenericName(fromUrl);
 
   // The app's choice: the file's own name always, the page title always, or (Smart, the
   // default) the title only when the address has nothing better to say.

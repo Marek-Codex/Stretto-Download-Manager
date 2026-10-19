@@ -138,7 +138,7 @@ async function claim(item, url, suggest) {
   try {
     taken = await sendToApp(cfg, {
       url,
-      fileName: filename || null,
+      fileName: await captureNameFor(url, filename, item.referrer),
       cookie,
       // A download that arrived by redirect usually has no referrer of its own, because
       // the referrer belongs to the request the browser was following, not the one that
