@@ -196,7 +196,12 @@ async function nameFor(item) {
   const fromUrl = guessName(item.url);
   const generic = !/\.\w{2,5}$/.test(fromUrl)
     || /^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*\.(m3u8?|mpd)$/i.test(fromUrl);
-  if (!generic || !(item.tabId >= 0)) return fromUrl;
+
+  // The app's choice: the file's own name always, the page title always, or (Smart, the
+  // default) the title only when the address has nothing better to say.
+  const nameFrom = (await config()).rules?.nameFrom || 'Smart';
+  if (nameFrom === 'File') return fromUrl;
+  if ((nameFrom !== 'Title' && !generic) || !(item.tabId >= 0)) return fromUrl;
 
   try {
     const tab = await api.tabs.get(item.tabId);

@@ -134,7 +134,8 @@ public sealed class FtpDownloader
 
     private static string ResolvePath(DownloadRequest request, string name, FtpResumeState identity) =>
         FilePaths.ClashFree(request.TargetDirectory, name, request.Overwrite,
-            path => TryLoadResumeState(path, identity) is not null);
+            path => TryLoadResumeState(path, identity) is not null,
+            request.TagClashes ? SourceTag.For(request.Url) : null);
 
     private static string StatePathFor(string path) => path + ".stretto.ftp";
 

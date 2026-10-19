@@ -25,7 +25,7 @@ const DEFAULTS = {
   // mediaTypes and alwaysHosts are additive on top of the built-in tables, so an older
   // Stretto that sends neither still works.
   rules: {
-    captureTypes: [], videoTypes: [], mediaTypes: [], minVideoKb: 0, skipHosts: [], alwaysHosts: [],
+    captureTypes: [], videoTypes: [], mediaTypes: [], minVideoKb: 0, skipHosts: [], alwaysHosts: [], nameFrom: 'Smart',
   },
 };
 

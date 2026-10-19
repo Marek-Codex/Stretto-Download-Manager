@@ -44,6 +44,8 @@ public static class Program
         await runner.Run("reuses a file that is its own partial download", ReusesOwnPartial);
         await runner.Run("retries what can fix itself and not what cannot", ClassifiesRetries);
         await runner.Run("runs the download service with no window", ServiceRunsHeadless);
+        await runner.Run("tells two sources apart with a short tag", TagsSources);
+        await runner.Run("tags a clashing name before numbering it", TagsClashingNames);
         await runner.Run("opens every connection at once when not adaptive", FixedFanOutIsUnchanged);
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
@@ -239,6 +241,34 @@ public static class Program
         {
             DownloadStore.Directory = originalData;
         }
+    }
+
+    private static Task TagsSources()
+    {
+        Assert.Equal("a8f3k2", SourceTag.For(new Uri("https://cdn.example.com/v/a8f3k2xq9.mp4?token=1")), "a real file name gives its start");
+        Assert.Equal(SourceTag.For(new Uri("https://x.com/v/abc/master.m3u8?sig=1")), SourceTag.For(new Uri("https://x.com/v/abc/master.m3u8?sig=2")), "a rotating token must not change the tag");
+        Assert.True(SourceTag.For(new Uri("https://x.com/v/abc/master.m3u8")) != SourceTag.For(new Uri("https://x.com/v/def/master.m3u8")), "two playlists need different tags");
+        Assert.Equal(6, SourceTag.For(new Uri("https://x.com/v/abc/master.m3u8")).Length, "a hash tag is six characters");
+        Assert.Equal(6, SourceTag.For(new Uri("https://x.com/a.mp4")).Length, "a name too short to use falls back to a hash");
+        return Task.CompletedTask;
+    }
+
+    private static Task TagsClashingNames()
+    {
+        using var folder = new TempFolder();
+        File.WriteAllText(System.IO.Path.Combine(folder.Path, "Cat.mp4"), "x");
+
+        var first = FilePaths.ClashFree(folder.Path, "Cat.mp4", false, tag: "a8f3k2");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat [a8f3k2].mp4"), first, "tag, not a number");
+
+        File.WriteAllText(first, "x");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat [a8f3k2] (2).mp4"),
+            FilePaths.ClashFree(folder.Path, "Cat.mp4", false, tag: "a8f3k2"), "numbering only after the tagged name is taken too");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "Cat (2).mp4"),
+            FilePaths.ClashFree(folder.Path, "Cat.mp4", false), "no tag keeps the number");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "Free.mp4"),
+            FilePaths.ClashFree(folder.Path, "Free.mp4", false, tag: "a8f3k2"), "a free name is left alone");
+        return Task.CompletedTask;
     }
 
     private static async Task HashesFile()

@@ -59,6 +59,7 @@ public sealed partial class MainWindow
         minVideoKb = _settings.MinVideoSizeKb,
         skipHosts = _settings.SkipHosts,
         alwaysHosts = _settings.AlwaysHosts,
+        nameFrom = _settings.NameFrom.ToString(),
     });
 
     /// <summary>

@@ -112,7 +112,8 @@ public sealed partial class DownloadService
             progress,
             ct,
             item.Headers,
-            overwrite: _settings.OverwriteExisting).ConfigureAwait(true);
+            overwrite: _settings.OverwriteExisting,
+            tagClashes: _settings.TagClashingNames).ConfigureAwait(true);
 
         AppLog.Write($"Stream finished: {result.BytesWritten / 1024} KB in {result.Elapsed.TotalSeconds:F0} s");
 

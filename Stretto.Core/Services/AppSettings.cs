@@ -11,6 +11,9 @@ public enum ProxyProtocol { Http, Socks5 }
 /// <summary>What double clicking a finished download does.</summary>
 public enum DoubleClickAction { OpenFile, OpenFolder, Nothing }
 
+/// <summary>Where a captured video's file name comes from.</summary>
+public enum NameSource { Smart, File, Title }
+
 /// <summary>
 /// Persisted preferences.
 ///
@@ -141,6 +144,14 @@ public sealed class AppSettings
 
     /// <summary>False means a clashing name gets " (2)" rather than being replaced.</summary>
     public bool OverwriteExisting { get; set; }
+
+    /// <summary>A clashing name gets a short tag from where it came from ("Title [a8f3k2]")
+    /// rather than a number. Only matters when <see cref="OverwriteExisting"/> is off.</summary>
+    public bool TagClashingNames { get; set; }
+
+    /// <summary>Where a browser-captured video's name comes from. Smart uses the page's
+    /// title only when the address's own name is generic, like master.m3u8.</summary>
+    public NameSource NameFrom { get; set; } = NameSource.Smart;
 
     public DoubleClickAction DoubleClick { get; set; } = DoubleClickAction.OpenFile;
 

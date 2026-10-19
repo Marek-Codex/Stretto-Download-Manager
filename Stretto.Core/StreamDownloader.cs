@@ -148,7 +148,8 @@ public sealed partial class StreamDownloader
         IProgress<ProgressSnapshot>? progress = null,
         CancellationToken ct = default,
         IReadOnlyDictionary<string, string>? extraHeaders = null,
-        bool overwrite = false)
+        bool overwrite = false,
+        bool tagClashes = false)
     {
         Directory.CreateDirectory(targetDirectory);
 
@@ -156,7 +157,7 @@ public sealed partial class StreamDownloader
         if (!Path.HasExtension(fileName) || Path.GetExtension(fileName) is ".m3u8" or ".mpd")
             fileName = Path.ChangeExtension(fileName, ".mp4");
 
-        var output = ResolveOutputPath(targetDirectory, fileName, overwrite);
+        var output = ResolveOutputPath(targetDirectory, fileName, overwrite, tagClashes ? SourceTag.For(playlist) : null);
         var stopwatch = Stopwatch.StartNew();
 
         var headers = new List<string>();
@@ -361,8 +362,8 @@ public sealed partial class StreamDownloader
         }
     }
 
-    private static string ResolveOutputPath(string directory, string name, bool overwrite) =>
-        FilePaths.ClashFree(directory, name, overwrite);
+    private static string ResolveOutputPath(string directory, string name, bool overwrite, string? tag) =>
+        FilePaths.ClashFree(directory, name, overwrite, tag: tag);
 
     private static string SafeFileName(string name)
     {

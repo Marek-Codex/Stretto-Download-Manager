@@ -529,6 +529,7 @@ public sealed partial class DownloadService
             Headers = headers,
             Cookie = item.Cookie,
             Overwrite = _settings.OverwriteExisting,
+            TagClashes = _settings.TagClashingNames,
             UseServerTimestamp = _settings.UseServerTimestamp,
         };
     }

@@ -392,7 +392,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         // exact remote file. A stale sidecar beside an unrelated file must not turn the
         // no-overwrite path into an overwrite.
         FilePaths.ClashFree(request.TargetDirectory, fileName, request.Overwrite,
-            path => DownloadState.TryLoad(path, info) is not null);
+            path => DownloadState.TryLoad(path, info) is not null,
+            request.TagClashes ? SourceTag.For(request.Url) : null);
 
     /// <summary>Even split, but never into pieces so small that connection setup dominates.</summary>
     public static List<Segment> PlanSegments(long total, int requested)

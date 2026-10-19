@@ -21,12 +21,18 @@ public sealed partial class SettingsDialog
         _doubleClick.Items.Add("Do nothing");
         _doubleClick.SelectedIndex = (int)_settings.DoubleClick;
         _keepDays.Value = _settings.KeepInCompleteDays;
+        _nameFrom.Items.Add("Page title if the file has no real name");
+        _nameFrom.Items.Add("Always the file's own name");
+        _nameFrom.Items.Add("Always the page title");
+        _nameFrom.SelectedIndex = (int)_settings.NameFrom;
 
         yield return GroupTitle("Saving");
         yield return Card(
             StackRow("Download folder", null, WithButton(_folderBox, PushButton("Browse", BrowseFolder_Click))),
             Row("Sort into subfolders by file type", "Uses the folders set for each category below.", _sortByType),
             Row("Overwrite a file that already exists", "When off, a clashing name is saved as \"name (2).ext\".", _overwrite),
+            Row("Tell clashing names apart by source", "A clashing name gets a short tag from where it came from, like \"name [a8f3k2].ext\", before any number.", _tagClashes),
+            Row("Name videos from the browser after", "A video's own address often says nothing, like master.m3u8.", _nameFrom),
             Row("Use the server's date on saved files", null, _serverTimestamp));
 
         yield return GroupTitle("Categories");

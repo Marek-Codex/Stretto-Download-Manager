@@ -82,6 +82,8 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
     private readonly TextBox _folderBox = new() { IsReadOnly = true };
     private readonly ToggleSwitch _sortByType;
     private readonly ToggleSwitch _overwrite;
+    private readonly ToggleSwitch _tagClashes;
+    private readonly ComboBox _nameFrom = new() { MinWidth = 190 };
     private readonly ToggleSwitch _serverTimestamp;
     private readonly ToggleSwitch _startAuto;
     private readonly ToggleSwitch _progressWindow;
@@ -170,6 +172,7 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
 
         _sortByType = Toggle(settings.SortByType);
         _overwrite = Toggle(settings.OverwriteExisting);
+        _tagClashes = Toggle(settings.TagClashingNames);
         _serverTimestamp = Toggle(settings.UseServerTimestamp);
         _startAuto = Toggle(settings.StartAutomatically);
         _progressWindow = Toggle(settings.ShowProgressWindow);
@@ -354,6 +357,8 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         _settings.DownloadFolder = _folder;
         _settings.SortByType = _sortByType.IsOn;
         _settings.OverwriteExisting = _overwrite.IsOn;
+        _settings.TagClashingNames = _tagClashes.IsOn;
+        _settings.NameFrom = (NameSource)Math.Max(0, _nameFrom.SelectedIndex);
         _settings.UseServerTimestamp = _serverTimestamp.IsOn;
         _settings.StartAutomatically = _startAuto.IsOn;
         _settings.ShowProgressWindow = _progressWindow.IsOn;

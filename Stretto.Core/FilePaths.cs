@@ -7,9 +7,13 @@ public static class FilePaths
     /// file pushes the download to "name (2).ext", "name (3).ext" and so on -- unless
     /// <paramref name="isOwnPartial"/> says the file already there is this download's own work
     /// in progress, in which case it is resumed rather than avoided.
+    ///
+    /// With a <paramref name="tag"/> the first try is "name [tag].ext" -- a mark that says
+    /// which source it came from -- and numbering only starts if that is taken as well.
     /// </summary>
     public static string ClashFree(
-        string directory, string name, bool overwrite, Func<string, bool>? isOwnPartial = null)
+        string directory, string name, bool overwrite, Func<string, bool>? isOwnPartial = null,
+        string? tag = null)
     {
         var path = Path.Combine(directory, name);
         if (overwrite || !File.Exists(path) || isOwnPartial?.Invoke(path) == true)
@@ -17,6 +21,15 @@ public static class FilePaths
 
         var stem = Path.GetFileNameWithoutExtension(name);
         var extension = Path.GetExtension(name);
+
+        if (!string.IsNullOrEmpty(tag))
+        {
+            stem = $"{stem} [{tag}]";
+            var tagged = Path.Combine(directory, stem + extension);
+            if (!File.Exists(tagged))
+                return tagged;
+        }
+
         for (var n = 2; n < 10_000; n++)
         {
             var candidate = Path.Combine(directory, $"{stem} ({n}){extension}");

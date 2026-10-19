@@ -38,6 +38,10 @@ public sealed class DownloadRequest
     /// proof that the bytes on disk belong to this transfer.</summary>
     public bool Overwrite { get; init; } = true;
 
+    /// <summary>When a name is taken, add a short tag from the source address before
+    /// resorting to a number. See <see cref="SourceTag"/>.</summary>
+    public bool TagClashes { get; init; }
+
     /// <summary>Stamp the finished file with the server's Last-Modified date.</summary>
     public bool UseServerTimestamp { get; init; }
 }
