@@ -279,6 +279,13 @@ async function reportMedia(entry) {
     if (!cfg.token || !cfg.port) return;
 
     const tab = entry.tabId >= 0 ? await api.tabs.get(entry.tabId).catch(() => null) : null;
+
+    // A site on the skip list is one the user said to leave alone, so it does not feed the
+    // app either. The popup still lists the media, so a video can be taken by hand.
+    const skipHosts = cfg.rules?.skipHosts || [];
+    const hostOf = (address) => { try { return new URL(address).hostname; } catch { return ''; } };
+    if (hostSkipped(hostOf(entry.url), skipHosts) || hostSkipped(hostOf(tab?.url), skipHosts)) return;
+
     const cookie = await cookieHeaderFor(entry.url).catch(() => '');
 
     // Whether the capture actually worked is not checkable without a browser, so it says
