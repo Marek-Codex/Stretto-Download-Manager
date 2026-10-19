@@ -39,6 +39,10 @@ public sealed record HandoffRequest
 {
     public required string Url { get; init; }
     public string? FileName { get; init; }
+
+    /// <summary>Why the extension chose that name (which tab, which rule, which version), for
+    /// the log. Never shown, and never part of the name.</summary>
+    public string? NameNote { get; init; }
     public string? Cookie { get; init; }
     public string? Referrer { get; init; }
     public string? UserAgent { get; init; }
@@ -403,6 +407,16 @@ public sealed class HandoffListener : IDisposable
             {
                 await WriteAsync(stream, 400, """{"error":"url"}""", context, ct).ConfigureAwait(false);
                 return;
+            }
+
+            // How the name was chosen, in words the extension supplied, beside whether it is just
+            // the address's own name. The name itself is left out of the log on purpose.
+            if (!string.IsNullOrWhiteSpace(request.NameNote))
+            {
+                var addressName = Path.GetFileName(uri.AbsolutePath);
+                var sameAsAddress = string.Equals(request.FileName, addressName, StringComparison.OrdinalIgnoreCase);
+                var note = request.NameNote.Length > 200 ? request.NameNote[..200] : request.NameNote;
+                Log?.Invoke($"Name: {note}; sent name is {(sameAsAddress ? "the address's own" : "different from the address's")}");
             }
 
             // Decide can take as long as the user does. Without it, fall back to the old

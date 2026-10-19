@@ -244,21 +244,31 @@ async function activeTab() {
  * a video page names the file after the video. Anything that is not video keeps its name.
  */
 async function captureNameFor(url, filename, referrer) {
+  const version = api.runtime.getManifest?.().version || '?';
   const cfg = await config();
   const nameFrom = cfg.rules?.nameFrom || 'Smart';
-  if (nameFrom === 'File') return filename || null;
+  const keep = (why) => ({ name: filename || null, note: `v${version} ${nameFrom}: ${why}` });
+  if (nameFrom === 'File') return keep('file name setting');
 
   const name = filename || guessName(url);
   const type = extensionOf(url, filename);
   const isVideo = (cfg.rules?.videoTypes || []).some((t) => t && t.toLowerCase() === type);
-  if (!isVideo || (nameFrom !== 'Title' && !isGenericName(name))) return filename || null;
+  if (!isVideo) return keep(`not a video type ("${type}")`);
+  if (nameFrom !== 'Title' && !isGenericName(name)) return keep('file name already reads like words');
 
   // The tab the download came from if the referrer says, otherwise the tab being looked
   // at: a download button that sends no referrer was, nearly always, clicked on that page.
-  const tab = (await tabForPage(referrer)) || (await activeTab());
-  const title = cleanTitle(tab?.title, tab?.url);
-  if (!title) return filename || null;
-  return type ? `${title}.${type}` : title;
+  const byReferrer = await tabForPage(referrer);
+  const tab = byReferrer || (await activeTab());
+  if (!tab) return keep(`no tab found (referrer ${referrer ? 'given' : 'missing'})`);
+
+  const title = cleanTitle(tab.title, tab.url);
+  if (!title) return keep(`tab found by ${byReferrer ? 'referrer' : 'being in front'} but its title was empty (raw length ${String(tab.title || '').length})`);
+
+  return {
+    name: type ? `${title}.${type}` : title,
+    note: `v${version} ${nameFrom}: title from tab found by ${byReferrer ? 'referrer' : 'being in front'}, ${title.length} characters`,
+  };
 }
 
 async function nameFor(item) {
