@@ -193,23 +193,15 @@ function mediaKey(url) {
  * the video actually is. XDM names streams this way. A real file name wins when there is one.
  */
 /**
- * A file name that says nothing about what the file is: no extension, a stream playlist's
- * stock name, or an id (digits, or a hex string or UUID). Sites that serve a video as
- * 48213977.mp4 are the common case, and the page title is the only readable name there is.
+ * Whether a file name is worth keeping over the page's title. A name that reads like words
+ * ("Funny Cat Video.mp4", "funny_cat_video.mp4") is; anything else -- an id, a hash, a stock
+ * playlist name, no extension at all -- is not, and the page title says more.
  */
 function isGenericName(name) {
   if (!/\.\w{2,5}$/.test(name)) return true;
-  if (/^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*\.(m3u8?|mpd)$/i.test(name)) return true;
 
   const stem = name.replace(/\.\w{2,5}$/, '');
-  if (/^\d+$/.test(stem) || /^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i.test(stem)) return true;
-
-  // Ids that are not pure hex: a long run with no spaces or underscores, a good share of
-  // digits, and no real word in it. "Inception2010" has a word; "26e2fb0b9a1c4d" does not.
-  if (stem.length < 8 || /[\s_]/.test(stem)) return false;
-  const digits = (stem.match(/\d/g) || []).length;
-  const longestWord = Math.max(0, ...(stem.match(/[A-Za-z]+/g) || []).map((run) => run.length));
-  return digits / stem.length >= 0.25 && longestWord < 7;
+  return !(/\s/.test(stem) || /[A-Za-z]{3,}[_.-][A-Za-z]{3,}/.test(stem));
 }
 
 /** The tab showing a page, by address with the fragment ignored. The active one wins. */
@@ -287,6 +279,26 @@ function cleanTitle(raw, pageUrl) {
 
   return title.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
+
+/**
+ * A name is worked out when a video is first seen, and the page's title may not have
+ * arrived by then. Whenever a tab's title changes, the names of its media are worked out
+ * again, so the popup never keeps an address-style name once there is a title to use.
+ */
+async function retitleMedia(tabId) {
+  const mine = (await getMedia()).filter((m) => m.tabId === tabId);
+  if (!mine.length) return;
+
+  const names = new Map();
+  for (const m of mine) names.set(m.key || m.url, await nameFor(m));
+
+  await updateMedia((current) => current.map((m) =>
+    m.tabId === tabId && names.has(m.key || m.url) ? { ...m, name: names.get(m.key || m.url) } : m));
+}
+
+api.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.title !== undefined) void retitleMedia(tabId);
+});
 
 async function recordMedia(item) {
   const entry = { ...item, key: mediaKey(item.url), name: await nameFor(item), seenAt: Date.now() };
