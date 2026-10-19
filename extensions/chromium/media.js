@@ -204,16 +204,26 @@ function isGenericName(name) {
   return !(/\s/.test(stem) || /[A-Za-z]{3,}[_.-][A-Za-z]{3,}/.test(stem));
 }
 
-/** The tab showing a page, by address with the fragment ignored. The active one wins. */
+/**
+ * The tab showing the page a download came from. The exact address wins, but a download
+ * served from another host (a CDN, nearly always) carries only the page's origin as its
+ * referrer, so an origin match is the fallback. Among matches the active tab wins: it is
+ * the one the person just clicked in.
+ */
 async function tabForPage(pageUrl) {
   if (!pageUrl) return null;
-  const bare = (address) => { try { const u = new URL(address); u.hash = ''; return u.href; } catch { return ''; } };
-  const want = bare(pageUrl);
-  if (!want) return null;
+
+  const parse = (address) => { try { return new URL(address); } catch { return null; } };
+  const wanted = parse(pageUrl);
+  if (!wanted) return null;
+
+  const bare = (address) => { const u = parse(address); if (u) u.hash = ''; return u ? u.href : ''; };
+  const pick = (tabs) => tabs.find((t) => t.active) || tabs[0] || null;
 
   try {
-    const hits = (await api.tabs.query({})).filter((t) => bare(t.url || '') === want);
-    return hits.find((t) => t.active) || hits[0] || null;
+    const tabs = await api.tabs.query({});
+    return pick(tabs.filter((t) => bare(t.url || '') === bare(pageUrl)))
+      || pick(tabs.filter((t) => parse(t.url || '')?.origin === wanted.origin));
   } catch {
     return null;
   }

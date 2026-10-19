@@ -133,12 +133,15 @@ async function claim(item, url, suggest) {
   // Cookies are read after the cancel: they live in the browser's jar, not the download.
   const cookie = (await cookieHeaderFor(url)) || null;
 
+  const fileName = await captureNameFor(url, filename, item.referrer);
+  console.info(`Stretto: sending "${fileName}" (browser says "${filename}", page ${item.referrer || 'unknown'})`);
+
   let taken = false;
 
   try {
     taken = await sendToApp(cfg, {
       url,
-      fileName: await captureNameFor(url, filename, item.referrer),
+      fileName,
       cookie,
       // A download that arrived by redirect usually has no referrer of its own, because
       // the referrer belongs to the request the browser was following, not the one that

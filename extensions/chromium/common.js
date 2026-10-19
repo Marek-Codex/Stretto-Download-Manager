@@ -660,10 +660,15 @@ async function sendMedia({ url, tabUrl, tabId, kind }) {
     console.info(`Stretto: sending ${url} with ${Object.keys(captured.headers).join(', ')}`);
   }
 
+  // One line saying what name went out and where it came from, so "why is it still the
+  // hash" can be answered from the service worker console.
+  const fileName = await nameFor({ url, tabId });
+  console.info(`Stretto: sending "${fileName}" (address says "${guessName(url)}", tab ${tabId})`);
+
   try {
     const accepted = await sendToApp(cfg, {
       url,
-      fileName: await nameFor({ url, tabId }),
+      fileName,
       cookie: (await cookieHeaderFor(url)) || null,
       referrer: tabUrl || null,
       userAgent: navigator.userAgent,
