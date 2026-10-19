@@ -277,7 +277,7 @@ public sealed partial class DownloadService
         }
         catch (Exception retryFailure)
         {
-            App.Log($"Automatic retry of {item.Url} failed: {retryFailure}");
+            AppLog.Write($"Automatic retry of {item.Url} failed: {retryFailure}");
         }
     }
 
@@ -368,12 +368,12 @@ public sealed partial class DownloadService
             // A playlist pasted into New download, or captured from the browser as a plain
             // download, used to go through the file engine and save the playlist text.
             var viaFfmpeg = item.IsStream || LooksLikePlaylist(item);
-            StreamDownloader.Log ??= App.Log;
+            StreamDownloader.Log ??= AppLog.Write;
 
             // Which engine took it, and what kind of address. Host and file ending only:
             // the rest of a media URL is usually a signed token.
             if (Uri.TryCreate(item.Url, UriKind.Absolute, out var logged))
-                App.Log($"Download start: {(viaFfmpeg ? "stream (ffmpeg)" : item.IsSiteVideo ? "site video (yt-dlp)" : "file")} "
+                AppLog.Write($"Download start: {(viaFfmpeg ? "stream (ffmpeg)" : item.IsSiteVideo ? "site video (yt-dlp)" : "file")} "
                     + $"{logged.Host} ...{Path.GetExtension(logged.AbsolutePath)} mime={item.Mime ?? "-"}");
 
             if (viaFfmpeg)
@@ -443,7 +443,7 @@ public sealed partial class DownloadService
                 : null;
 
             item.Status = DownloadStatus.Failed;
-            App.Log($"Download failed [{item.Url}]: {exception}");
+            AppLog.Write($"Download failed [{item.Url}]: {exception}");
             Failed?.Invoke(item);
             ScheduleRetry(item, exception);
         }
@@ -581,7 +581,7 @@ public sealed partial class DownloadService
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                App.Log($"Could not delete {candidate}: {exception.Message}");
+                AppLog.Write($"Could not delete {candidate}: {exception.Message}");
             }
         }
     }

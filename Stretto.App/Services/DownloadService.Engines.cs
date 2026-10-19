@@ -116,7 +116,7 @@ public sealed partial class DownloadService
             item.Headers,
             overwrite: _settings.OverwriteExisting).ConfigureAwait(true);
 
-        App.Log($"Stream finished: {result.BytesWritten / 1024} KB in {result.Elapsed.TotalSeconds:F0} s");
+        AppLog.Write($"Stream finished: {result.BytesWritten / 1024} KB in {result.Elapsed.TotalSeconds:F0} s");
 
         item.FilePath = result.FilePath;
         item.Name = Path.GetFileName(result.FilePath);

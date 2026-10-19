@@ -86,7 +86,7 @@ public sealed class DownloadStore
         catch (Exception exception) when (exception is JsonException or IOException)
         {
             // A corrupt list must not stop the app launching; starting empty is recoverable.
-            App.Log($"Could not read download list: {exception.Message}");
+            AppLog.Write($"Could not read download list: {exception.Message}");
             return [];
         }
     }
@@ -145,7 +145,7 @@ public sealed class DownloadStore
         }
         catch (Exception exception) when (exception is JsonException or IOException)
         {
-            App.Log($"Could not save download list: {exception.Message}");
+            AppLog.Write($"Could not save download list: {exception.Message}");
         }
     }
 

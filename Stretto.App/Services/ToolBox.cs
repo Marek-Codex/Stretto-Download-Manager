@@ -1,3 +1,4 @@
+using Stretto.Core;
 using System.IO.Compression;
 
 namespace Stretto.App.Services;
@@ -291,7 +292,7 @@ public static class ToolBox
             }
             catch (IOException exception)
             {
-                App.Log($"Could not remove {name}: {exception.Message}");
+                AppLog.Write($"Could not remove {name}: {exception.Message}");
             }
         }
     }

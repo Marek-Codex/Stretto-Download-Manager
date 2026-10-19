@@ -354,7 +354,7 @@ public sealed class AppSettings
         }
         catch (Exception exception) when (exception is JsonException or IOException)
         {
-            App.Log($"Could not read settings: {exception.Message}");
+            AppLog.Write($"Could not read settings: {exception.Message}");
             return new AppSettings();
         }
     }
@@ -423,7 +423,7 @@ public sealed class AppSettings
         }
         catch (Exception exception) when (exception is JsonException or IOException)
         {
-            App.Log($"Could not save settings: {exception.Message}");
+            AppLog.Write($"Could not save settings: {exception.Message}");
         }
     }
 }

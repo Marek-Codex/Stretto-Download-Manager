@@ -132,7 +132,7 @@ public static class SiteCredentials
         {
             // A file written by another user account cannot be decrypted. Starting empty
             // beats refusing to run; the user just re-enters the login once.
-            App.Log($"Could not read saved logins: {exception.Message}");
+            AppLog.Write($"Could not read saved logins: {exception.Message}");
         }
 
         return _cache ??= new Dictionary<string, Login>(StringComparer.OrdinalIgnoreCase);
@@ -149,7 +149,7 @@ public static class SiteCredentials
         }
         catch (Exception exception)
         {
-            App.Log($"Could not save logins: {exception.Message}");
+            AppLog.Write($"Could not save logins: {exception.Message}");
         }
     }
 }

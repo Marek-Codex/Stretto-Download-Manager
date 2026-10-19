@@ -253,7 +253,7 @@ public sealed class QueueService
         }
         catch (Exception exception) when (exception is JsonException or IOException)
         {
-            App.Log($"Could not read queues: {exception.Message}");
+            AppLog.Write($"Could not read queues: {exception.Message}");
         }
 
         EnsureDefault();
@@ -269,7 +269,7 @@ public sealed class QueueService
         }
         catch (Exception exception) when (exception is JsonException or IOException)
         {
-            App.Log($"Could not save queues: {exception.Message}");
+            AppLog.Write($"Could not save queues: {exception.Message}");
         }
     }
 }

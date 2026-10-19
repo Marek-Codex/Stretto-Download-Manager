@@ -20,6 +20,8 @@ public partial class App : Application
         RequestedTheme = ApplicationTheme.Dark;
         InitializeComponent();
 
+        Stretto.Core.AppLog.Sink = Log;
+
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log($"AppDomain exception: {e.ExceptionObject}");
         UnhandledException += (_, e) => Log($"WinUI exception: {e.Exception}");
     }
