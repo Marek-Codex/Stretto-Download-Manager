@@ -264,7 +264,7 @@ public sealed partial class QueueDialog : UserControl, IWindowForm
                     TextTrimming = TextTrimming.CharacterEllipsis,
                 };
                 if (column == 2)
-                    text.Foreground = item.StatusBrush;
+                    text.Foreground = Visuals.StatusBrush(item.Status);
                 else if (column == 1)
                     text.Opacity = 0.7;
                 ToolTipService.SetToolTip(text, texts[column]);
@@ -327,7 +327,7 @@ public sealed partial class QueueDialog : UserControl, IWindowForm
                 }
             }
             if (cells[2].Child is TextBlock status)
-                status.Foreground = item.StatusBrush;
+                status.Foreground = Visuals.StatusBrush(item.Status);
         }
     }
 

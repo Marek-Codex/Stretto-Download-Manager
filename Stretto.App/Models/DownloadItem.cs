@@ -1,5 +1,3 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 using Stretto.App.Services;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -157,7 +155,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
         {
             if (_name == value) return;
             _name = value;
-            Notify(); Notify(nameof(Category)); Notify(nameof(CategoryGlyph)); Notify(nameof(DetailLine));
+            Notify(); Notify(nameof(Category)); Notify(nameof(DetailLine));
         }
     }
 
@@ -183,7 +181,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
         {
             if (_bytesCompleted == value) return;
             _bytesCompleted = value;
-            Notify(); Notify(nameof(Progress)); Notify(nameof(PercentText)); Notify(nameof(SizeText)); Notify(nameof(DetailLine)); Notify(nameof(ProgressVisibility));
+            Notify(); Notify(nameof(Progress)); Notify(nameof(PercentText)); Notify(nameof(SizeText)); Notify(nameof(DetailLine)); Notify(nameof(ShowsProgress));
         }
     }
 
@@ -194,7 +192,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
         {
             if (_totalBytes == value) return;
             _totalBytes = value;
-            Notify(); Notify(nameof(Progress)); Notify(nameof(PercentText)); Notify(nameof(SizeText)); Notify(nameof(DetailLine)); Notify(nameof(ProgressVisibility));
+            Notify(); Notify(nameof(Progress)); Notify(nameof(PercentText)); Notify(nameof(SizeText)); Notify(nameof(DetailLine)); Notify(nameof(ShowsProgress));
         }
     }
 
@@ -211,10 +209,10 @@ public sealed class DownloadItem : INotifyPropertyChanged
         {
             if (_status == value) return;
             _status = value;
-            Notify(); Notify(nameof(StatusText)); Notify(nameof(StatusBrush));
+            Notify(); Notify(nameof(StatusText));
             Notify(nameof(IsActive)); Notify(nameof(CanPause)); Notify(nameof(CanResume));
-            Notify(nameof(DetailLine)); Notify(nameof(ProgressVisibility));
-            Notify(nameof(RowActionGlyph)); Notify(nameof(RowActionLabel));
+            Notify(nameof(DetailLine)); Notify(nameof(ShowsProgress));
+            Notify(nameof(RowActionLabel));
         }
     }
 
@@ -319,18 +317,8 @@ public sealed class DownloadItem : INotifyPropertyChanged
     /// A bar only where it says something: while bytes are moving, or once some have
     /// arrived. A finished file or an empty track just read as a stray divider.
     /// </summary>
-    public Visibility ProgressVisibility =>
-        Status != DownloadStatus.Complete && (Status == DownloadStatus.Downloading || Progress > 0)
-            ? Visibility.Visible : Visibility.Collapsed;
-
-    /// <summary>The one thing the row's own button does for this state.</summary>
-    public string RowActionGlyph => Resource<string>(Status switch
-    {
-        DownloadStatus.Downloading or DownloadStatus.Queued => "IconPause",
-        DownloadStatus.Failed => "IconRetry",
-        DownloadStatus.Complete => "IconFolder",
-        _ => "IconResume",
-    });
+    public bool ShowsProgress =>
+        Status != DownloadStatus.Complete && (Status == DownloadStatus.Downloading || Progress > 0);
 
     public string RowActionLabel => Status switch
     {
@@ -353,24 +341,11 @@ public sealed class DownloadItem : INotifyPropertyChanged
             : local.ToString("d MMM");
     }
 
-    public Brush StatusBrush => Resource(Status switch
-    {
-        DownloadStatus.Complete => "StrettoDoneBrush",
-        DownloadStatus.Paused => "StrettoPausedBrush",
-        DownloadStatus.Pending => "StrettoPendingBrush",
-        DownloadStatus.Failed => "StrettoErrorBrush",
-        _ => "StrettoAccentBrush",
-    });
-
     /// <summary>
     /// The category this file files under, by name rather than by enum: the table in
     /// Settings is editable, so the set of categories is data now and not a closed list.
     /// </summary>
     public string Category => CategoryRules.Classify(Name, Mime);
-
-    /// <summary>Resolved through the icon dictionary so a font swap stays a one-file change.</summary>
-    public string CategoryGlyph =>
-        Application.Current.Resources[CategoryRules.Find(Category)?.Icon ?? "IconFile"] as string ?? "";
 
     public static string FormatBytes(long value)
     {
@@ -380,12 +355,6 @@ public sealed class DownloadItem : INotifyPropertyChanged
         while (size >= 1024 && unit < units.Length - 1) { size /= 1024; unit++; }
         return unit == 0 ? $"{size:F0} {units[unit]}" : $"{size:F1} {units[unit]}";
     }
-
-    private static Brush Resource(string key) =>
-        Application.Current.Resources[key] as Brush ?? new SolidColorBrush();
-
-    private static T Resource<T>(string key) where T : class =>
-        (Application.Current.Resources[key] as T)!;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

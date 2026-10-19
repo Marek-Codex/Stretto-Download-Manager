@@ -43,7 +43,7 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
             CornerRadius = new CornerRadius(9),
             Background = FormKit.Res("StrettoAccentSoftBrush"),
             VerticalAlignment = VerticalAlignment.Top,
-            Child = new FontIcon { Glyph = item.CategoryGlyph, FontSize = 20, Foreground = accent },
+            Child = new FontIcon { Glyph = Visuals.CategoryGlyph(item), FontSize = 20, Foreground = accent },
         };
 
         var title = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
@@ -53,7 +53,7 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
             Text = $"{item.Category}  ·  {item.StatusLabel}"
                  + (item.TotalBytes is { } size ? $"  ·  {DownloadItem.FormatBytes(size)}" : ""),
             FontSize = 12,
-            Foreground = item.StatusBrush,
+            Foreground = Visuals.StatusBrush(item.Status),
         });
 
         if (embedded)

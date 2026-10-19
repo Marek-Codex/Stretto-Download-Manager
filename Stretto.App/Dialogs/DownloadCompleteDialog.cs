@@ -44,7 +44,7 @@ public sealed class DownloadCompleteDialog : UserControl, IWindowForm, IWindowFo
             VerticalAlignment = VerticalAlignment.Top,
             Child = new FontIcon
             {
-                Glyph = item.CategoryGlyph,
+                Glyph = Visuals.CategoryGlyph(item),
                 FontSize = 22,
                 Foreground = accent,
                 HorizontalAlignment = HorizontalAlignment.Center,

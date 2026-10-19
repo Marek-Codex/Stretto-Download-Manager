@@ -170,13 +170,13 @@ public sealed class DownloadProgressWindow : Window
     {
         _name.Text = _item.Name;
         _url.Text = _item.Url;
-        _glyph.Glyph = _item.CategoryGlyph;
+        _glyph.Glyph = Visuals.CategoryGlyph(_item);
 
         var percent = _item.Progress;
         var known = _item.TotalBytes is > 0 || _item.ProgressOverride is not null;
         _bar.Value = percent;
         _bar.IsIndeterminate = !known && _item.Status == DownloadStatus.Downloading;
-        _bar.Foreground = _item.StatusBrush;
+        _bar.Foreground = Visuals.StatusBrush(_item.Status);
 
         // An unknown total is real for streams, so show what is known rather than a fake total.
         _percent.Text = known ? $"{percent:F0}%" : _item.BytesCompleted > 0 ? DownloadItem.FormatBytes(_item.BytesCompleted) : "0%";
