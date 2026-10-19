@@ -245,28 +245,39 @@ public sealed partial class DownloadService
     /// timeouts, dropped connections, 5xx. Not for a refused or expired link (4xx) or a
     /// sign-in page, which fail the same way every time and need a person.
     /// </summary>
-    private async void ScheduleRetry(DownloadItem item, Exception exception)
+    private void ScheduleRetry(DownloadItem item, Exception exception) =>
+        _ = RetryAfterDelayAsync(item, exception);
+
+    /// <summary>
+    /// A Task, not async void: nothing awaits it, but an exception after the delay is caught
+    /// and logged here instead of escaping onto the thread pool, where it ends the process.
+    /// </summary>
+    private async Task RetryAfterDelayAsync(DownloadItem item, Exception exception)
     {
-        var permanent = item.LooksExpired
-            || exception is InvalidOperationException
-            || exception is HttpRequestException { StatusCode: { } code } && (int)code is >= 400 and < 500;
-
-        if (!_settings.AutoRetry || permanent || item.AutoRetries >= RetryDelays.Length)
-            return;
-
-        var delay = RetryDelays[item.AutoRetries];
-        item.AutoRetries++;
-        var wait = delay.TotalMinutes >= 1 ? $"{delay.TotalMinutes:0} min" : $"{delay.TotalSeconds:0} s";
-        item.Error = $"{exception.Message} Retrying in {wait} ({item.AutoRetries} of {RetryDelays.Length}).";
-
-        await Task.Delay(delay).ConfigureAwait(true);
-
-        // Only if nothing else happened meanwhile: removed, restarted or resumed by hand.
-        if (item.Status == DownloadStatus.Failed && Items.Contains(item))
+        try
         {
-            item.Error = null;
-            item.Status = DownloadStatus.Queued;
-            Pump();
+            if (!_settings.AutoRetry || item.LooksExpired || RetryPolicy.IsPermanent(exception)
+                || item.AutoRetries >= RetryDelays.Length)
+                return;
+
+            var delay = RetryDelays[item.AutoRetries];
+            item.AutoRetries++;
+            var wait = delay.TotalMinutes >= 1 ? $"{delay.TotalMinutes:0} min" : $"{delay.TotalSeconds:0} s";
+            item.Error = $"{exception.Message} Retrying in {wait} ({item.AutoRetries} of {RetryDelays.Length}).";
+
+            await Task.Delay(delay).ConfigureAwait(true);
+
+            // Only if nothing else happened meanwhile: removed, restarted or resumed by hand.
+            if (item.Status == DownloadStatus.Failed && Items.Contains(item))
+            {
+                item.Error = null;
+                item.Status = DownloadStatus.Queued;
+                Pump();
+            }
+        }
+        catch (Exception retryFailure)
+        {
+            App.Log($"Automatic retry of {item.Url} failed: {retryFailure}");
         }
     }
 
