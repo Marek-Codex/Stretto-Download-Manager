@@ -88,6 +88,16 @@ async function claim(item, url, suggest) {
   let cfg = await config();
   if (!cfg.enabled) return giveBack('monitoring is switched off in the popup');
 
+  // A site on the skip list is released at once from the cached rules, before any call to
+  // the app: it never needed the app's answer, and the browser is holding the download
+  // until this returns. The refresh still runs, so a change made in the app is seen next time.
+  const skipHosts = cfg.rules?.skipHosts || [];
+  const hostOf = (address) => { try { return new URL(address).hostname; } catch { return ''; } };
+  if (hostSkipped(hostOf(url), skipHosts) || hostSkipped(hostOf(item.referrer), skipHosts)) {
+    void config().then(ensureConnection).then((c) => c && refreshRules(c));
+    return giveBack('the site is on the skip list');
+  }
+
   const ready = await ensureConnection(cfg);
   if (!ready) {
     notify('Stretto is not running, or has not allowed this extension yet.');
