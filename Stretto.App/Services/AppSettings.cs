@@ -115,6 +115,9 @@ public sealed class AppSettings
     public static readonly string[] DefaultSkipHosts =
     [
         "update.microsoft.com", "windowsupdate.com", "thawte.com", "uupdump.net",
+        // IPFS gateways that unpack the file in a service worker inside the browser. Fetched
+        // directly they answer with a web page, so only the browser can download from them.
+        "dweb.link", "inbrowser.link",
     ];
 
     // ═══ General ═══

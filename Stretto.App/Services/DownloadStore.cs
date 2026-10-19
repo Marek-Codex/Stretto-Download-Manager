@@ -45,6 +45,9 @@ public sealed class DownloadStore
         public long BytesCompleted { get; set; }
         public long? TotalBytes { get; set; }
 
+        /// <summary>Why a failed download failed, so the row still says after a restart.</summary>
+        public string? Error { get; set; }
+
         /// <summary>The captured request headers that are safe to keep. See <see cref="Keepable"/>.</summary>
         public Dictionary<string, string>? Headers { get; set; }
     }
@@ -121,6 +124,7 @@ public sealed class DownloadStore
                 : i.Status,
             BytesCompleted = i.BytesCompleted,
             TotalBytes = i.TotalBytes,
+            Error = i.Status is DownloadStatus.Failed ? i.Error : null,
             Headers = KeepableHeaders(i.Headers),
         })];
 

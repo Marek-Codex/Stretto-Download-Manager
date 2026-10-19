@@ -224,6 +224,7 @@ public sealed partial class DownloadService
         Status = entry.Status,
         TotalBytes = entry.TotalBytes,
         BytesCompleted = entry.BytesCompleted,
+        Error = entry.Status is DownloadStatus.Failed ? entry.Error : null,
         // Filtered on the way in as well as out: an imported list may have been written by
         // someone else, and must not be able to plant an Authorization header on a download.
         Headers = DownloadStore.KeepableHeaders(entry.Headers),
