@@ -98,10 +98,7 @@ async function decide(details) {
   try {
     const taken = await sendToApp(cfg, {
       url: details.url,
-      ...(await (async () => {
-        const { name, note } = await captureNameFor(details.url, filename, details.originUrl || details.documentUrl);
-        return { fileName: name, nameNote: note };
-      })()),
+      fileName: filename || null,
       cookie: (await cookieHeaderFor(details.url)) || null,
       referrer: details.originUrl || details.documentUrl || null,
       userAgent: navigator.userAgent,

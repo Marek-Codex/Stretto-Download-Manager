@@ -10,6 +10,10 @@ public sealed record MediaReport
 {
     public required string Url { get; init; }
     public string? Name { get; init; }
+
+    /// <summary>The title of the page it was playing on, when the extension found one. The
+    /// app turns this into a file name when the video is downloaded; see FileNaming.</summary>
+    public string? PageTitle { get; init; }
     public string? Mime { get; init; }
     public long? Size { get; init; }
     public string? Cookie { get; init; }
@@ -40,8 +44,15 @@ public sealed record HandoffRequest
     public required string Url { get; init; }
     public string? FileName { get; init; }
 
-    /// <summary>Why the extension chose that name (which tab, which rule, which version), for
-    /// the log. Never shown, and never part of the name.</summary>
+    /// <summary>The title of the page the download came from, when the extension found one.
+    /// The app chooses between this and <see cref="FileName"/>; see FileNaming.</summary>
+    public string? PageTitle { get; init; }
+
+    /// <summary>Set by the app, not the extension: the name was chosen from the page's title.</summary>
+    public bool NamedFromTitle { get; init; }
+
+    /// <summary>How the extension found the title (which tab, which version), for the log.
+    /// Never shown, and never part of the name.</summary>
     public string? NameNote { get; init; }
     public string? Cookie { get; init; }
     public string? Referrer { get; init; }

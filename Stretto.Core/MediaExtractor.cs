@@ -26,9 +26,9 @@ public sealed record MediaCandidate
     /// <summary>The yt-dlp format to ask for, when one was picked. Null means its choice.</summary>
     public string? FormatId { get; init; }
 
-    /// <summary>The name to save under, when something already decided it: the extension names
-    /// a video after its page, and a row that shows that name must save under it too.</summary>
-    public string? FileName { get; init; }
+    /// <summary>The title of the page it was seen on. The file name is chosen from it at
+    /// download time, so a title that arrives late is still used.</summary>
+    public string? PageTitle { get; init; }
     public string? Cookie { get; init; }
     public string? Referrer { get; init; }
     public string? UserAgent { get; init; }

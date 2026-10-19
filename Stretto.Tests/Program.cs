@@ -46,7 +46,8 @@ public static class Program
         await runner.Run("runs the download service with no window", ServiceRunsHeadless);
         await runner.Run("tells two sources apart with a short tag", TagsSources);
         await runner.Run("tags a clashing name before numbering it", TagsClashingNames);
-        await runner.Run("saves a browser sighting under the name it was shown with", KeepsSightingName);
+        await runner.Run("names a captured video from the page title by the setting", NamesVideosFromTheTitle);
+        await runner.Run("names a watched video from its title when it is downloaded", SightingNameComesFromItsTitle);
         await runner.Run("opens every connection at once when not adaptive", FixedFanOutIsUnchanged);
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
@@ -272,20 +273,50 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static Task KeepsSightingName()
+    private static readonly string[] VideoTypes = ["mp4", "m3u8", "webm"];
+
+    private static Task NamesVideosFromTheTitle()
     {
-        var named = new MediaCandidate
+        var cdn = new Uri("https://cdn.example.com/files/26e2fb0b265b99d.mp4");
+        string? Pick(string? original, string? title, NameSource source = NameSource.Smart, Uri? url = null) =>
+            FileNaming.Choose(original, url ?? cdn, title, source, VideoTypes);
+
+        Assert.Equal("Funny Cat Video.mp4", Pick("26e2fb0b265b99d.mp4", "Funny Cat Video"), "a hash name gets the title");
+        Assert.Equal("Funny Cat Video.mp4", Pick(null, "Funny Cat Video"), "no browser name falls back to the address's");
+        Assert.Equal("Home Movie.mp4", Pick("Home Movie.mp4", "Funny Cat Video"), "Smart keeps a name that reads like words");
+        Assert.Equal("Funny Cat Video.mp4", Pick("Home Movie.mp4", "Funny Cat Video", NameSource.Title), "Title always uses the page");
+        Assert.Equal("26e2fb0b265b99d.mp4", Pick("26e2fb0b265b99d.mp4", "Funny Cat Video", NameSource.File), "File never does");
+        Assert.Equal("26e2fb0b265b99d.mp4", Pick("26e2fb0b265b99d.mp4", null), "no title keeps the name");
+        Assert.Equal("26e2fb0b265b99d.mp4", Pick("26e2fb0b265b99d.mp4", "   "), "a blank title keeps the name");
+        Assert.Equal("report.zip", Pick("report.zip", "Funny Cat Video"), "only video is renamed");
+        Assert.Equal("Cats Dogs Birds.mp4", Pick("26e2fb0b265b99d.mp4", "Cats: Dogs/Birds?"), "characters Windows refuses are dropped");
+        Assert.Equal("Show.m3u8", Pick(null, "Show", url: new Uri("https://x.com/v/abc/master.m3u8")), "a stream keeps its playlist ending");
+        Assert.True(FileNaming.IsGeneric("26e2fb0b_9a1c4d5e.mp4"), "an id with underscores is still an id");
+        Assert.False(FileNaming.IsGeneric("funny_cat_video.mp4"), "words with underscores are a name");
+        Assert.Equal("movie.mp4", Pick("movie.mp4", "Funny Cat Video"), "a short real name stays");
+        Assert.Equal("clip01.mp4", Pick("clip01.mp4", "Funny Cat Video"), "a short name with a number stays");
+        Assert.Equal("mossImage_sft_bf16.safetensors", Pick("mossImage_sft_bf16.safetensors", "Some Page"), "a real file is never renamed");
+        Assert.True(FileNaming.IsGeneric("master.m3u8"), "a stock playlist name is not worth keeping");
+        return Task.CompletedTask;
+    }
+
+    private static Task SightingNameComesFromItsTitle()
+    {
+        var sighting = new MediaCandidate
         {
             Url = new Uri("https://cdn.example.com/26e2fb0b9a1c.mp4"),
-            Label = "Funny Cat Video",
+            Label = "26e2fb0b9a1c.mp4",
             Kind = MediaKind.Direct,
-            FileName = "Funny Cat Video.mp4",
+            PageTitle = "Funny Cat Video",
         };
 
-        var options = MediaDownloadOptions.FromCandidate(named, new AppSettings());
-        Assert.Equal("Funny Cat Video.mp4", options.FileName, "the shown name is the saved name");
-        Assert.Equal(null, MediaDownloadOptions.FromCandidate(named with { FileName = null }, new AppSettings()).FileName,
-            "no name decided leaves it to the server");
+        var named = MediaDownloadOptions.FromCandidate(sighting, new AppSettings());
+        Assert.Equal("Funny Cat Video.mp4", named.FileName, "named at download time");
+        Assert.True(named.NamedFromTitle, "a clash on a renamed video is told apart with a tag");
+        Assert.False(MediaDownloadOptions.FromCandidate(sighting with { PageTitle = null }, new AppSettings()).NamedFromTitle,
+            "a name the server chose is not tagged");
+        Assert.Equal(null, MediaDownloadOptions.FromCandidate(sighting with { PageTitle = null }, new AppSettings()).FileName,
+            "no title leaves it to the server");
         return Task.CompletedTask;
     }
 

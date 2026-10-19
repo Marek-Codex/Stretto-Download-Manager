@@ -53,6 +53,9 @@ public sealed class DownloadItem : INotifyPropertyChanged
     // Settable so a link refresh can pin it: see DownloadService.RefreshLink.
     public string? PreferredFileName { get; set; }
 
+    /// <summary>The name came from a page title, so a clash is told apart with a tag.</summary>
+    public bool NamedFromTitle { get; set; }
+
     /// <summary>Cookie header forwarded from the browser, so an authenticated URL can be
     /// re-requested outside it. Held in memory only and never written to the list file.</summary>
     public string? Cookie { get; set; }

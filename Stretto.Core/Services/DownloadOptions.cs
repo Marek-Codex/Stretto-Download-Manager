@@ -13,6 +13,10 @@ public sealed record DownloadOptions
     /// <summary>Overrides the filename the server suggests.</summary>
     public string? FileName { get; init; }
 
+    /// <summary>The name came from a page title rather than the server, so two videos can
+    /// share it; a clash is then told apart with a tag instead of a number.</summary>
+    public bool NamedFromTitle { get; init; }
+
     public int Connections { get; init; } = 8;
 
     /// <summary>False is "Download Later": it sits in the list until asked to start.</summary>

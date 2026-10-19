@@ -193,15 +193,19 @@ function mediaKey(url) {
  * the video actually is. XDM names streams this way. A real file name wins when there is one.
  */
 /**
- * Whether a file name is worth keeping over the page's title. A name that reads like words
- * ("Funny Cat Video.mp4", "funny_cat_video.mp4") is; anything else -- an id, a hash, a stock
- * playlist name, no extension at all -- is not, and the page title says more.
+ * Whether a file name is one of the wildly random ones some servers hand out: long, with no
+ * readable word in it. Also a stream playlist's stock name, or no extension at all. Strict on
+ * purpose, because the page title replaces the name: "movie.mp4" and "clip01.mp4" are
+ * somebody's names. The app applies the same rule (FileNaming.IsGeneric) when it downloads.
  */
 function isGenericName(name) {
   if (!/\.\w{2,5}$/.test(name)) return true;
 
   const stem = name.replace(/\.\w{2,5}$/, '');
-  return !(/\s/.test(stem) || /[A-Za-z]{3,}[_.-][A-Za-z]{3,}/.test(stem));
+  if (/\.(m3u8?|mpd)$/i.test(name) && /^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*$/i.test(stem)) return true;
+
+  const readsLikeWords = /\s/.test(stem) || /[A-Za-z]{3,}[_.-][A-Za-z]{3,}/.test(stem);
+  return stem.length >= 12 && !readsLikeWords;
 }
 
 /**
@@ -239,35 +243,32 @@ async function activeTab() {
 }
 
 /**
- * The name to send for a download the browser started, as opposed to a media sighting. The
- * page title is used for video files by the same rules as nameFor, so a download button on
- * a video page names the file after the video. Anything that is not video keeps its name.
+ * The title of the page a download or video belongs to, and a note on how it was found.
+ *
+ * This is all the extension says about names: it reports the title, and the app decides
+ * what the file is called. The tab is the one that owns the video when the browser says
+ * which, otherwise the one the referrer points at, otherwise the one in front -- a button
+ * that sends no referrer was, nearly always, clicked on the page being looked at.
  */
-async function captureNameFor(url, filename, referrer) {
+async function pageTitleFor({ tabId, referrer }) {
   const version = api.runtime.getManifest?.().version || '?';
-  const cfg = await config();
-  const nameFrom = cfg.rules?.nameFrom || 'Smart';
-  const keep = (why) => ({ name: filename || null, note: `v${version} ${nameFrom}: ${why}` });
-  if (nameFrom === 'File') return keep('file name setting');
+  let tab = null;
+  let how = '';
 
-  const name = filename || guessName(url);
-  const type = extensionOf(url, filename);
-  const isVideo = (cfg.rules?.videoTypes || []).some((t) => t && t.toLowerCase() === type);
-  if (!isVideo) return keep(`not a video type ("${type}")`);
-  if (nameFrom !== 'Title' && !isGenericName(name)) return keep('file name already reads like words');
+  if (tabId >= 0) {
+    try { tab = await api.tabs.get(tabId); how = 'its own tab'; } catch { /* tab gone */ }
+  }
+  if (!tab) { tab = await tabForPage(referrer); if (tab) how = 'the referrer'; }
+  if (!tab) { tab = await activeTab(); if (tab) how = 'being in front'; }
 
-  // The tab the download came from if the referrer says, otherwise the tab being looked
-  // at: a download button that sends no referrer was, nearly always, clicked on that page.
-  const byReferrer = await tabForPage(referrer);
-  const tab = byReferrer || (await activeTab());
-  if (!tab) return keep(`no tab found (referrer ${referrer ? 'given' : 'missing'})`);
+  if (!tab) return { title: null, note: `v${version}: no tab found (referrer ${referrer ? 'given' : 'missing'})` };
 
   const title = cleanTitle(tab.title, tab.url);
-  if (!title) return keep(`tab found by ${byReferrer ? 'referrer' : 'being in front'} but its title was empty (raw length ${String(tab.title || '').length})`);
-
   return {
-    name: type ? `${title}.${type}` : title,
-    note: `v${version} ${nameFrom}: title from tab found by ${byReferrer ? 'referrer' : 'being in front'}, ${title.length} characters`,
+    title: title || null,
+    note: title
+      ? `v${version}: title of a tab found by ${how}, ${title.length} characters`
+      : `v${version}: tab found by ${how} but its title was empty (raw length ${String(tab.title || '').length})`,
   };
 }
 
@@ -408,6 +409,7 @@ async function reportMedia(entry) {
       body: JSON.stringify({
         url: entry.url,
         name: entry.name,
+        pageTitle: cleanTitle(tab?.title, tab?.url) || null,
         mime: entry.mime || null,
         size: entry.size || null,
         kind: entry.kind,

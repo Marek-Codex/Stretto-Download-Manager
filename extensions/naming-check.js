@@ -92,7 +92,7 @@ const expect = (label, got, want) => {
   {
     const h = run({ tabs: tabsFor(page, pageTitle) });
     const r = await h.ctx.sendMedia({ url: cdn, tabUrl: page, tabId: 5, kind: 'video' });
-    expect('popup send names it after the tab', h.sent[0]?.fileName, 'Funny Cat Video.mp4');
+    expect('popup send reports the title and the file name', `${h.sent[0]?.fileName} | ${h.sent[0]?.pageTitle}`, '26e2fb0b265b99d.mp4 | Funny Cat Video');
   }
 
   // 2. A download the browser started, with only the origin as referrer (cross-host).
@@ -103,7 +103,7 @@ const expect = (label, got, want) => {
       const ret = h.listeners.onDeterminingFilename(item, () => {});
       setTimeout(resolve, 200);
     });
-    expect('download with only the origin as referrer', h.sent[0]?.fileName, 'Funny Cat Video.mp4');
+    expect('a browser download with only the origin as referrer is sent untouched', `${h.sent[0]?.fileName} | ${h.sent[0]?.pageTitle}`, '26e2fb0b265b99d.mp4 | undefined');
   }
 
   // 3. Same, with a full-page referrer.
@@ -111,7 +111,7 @@ const expect = (label, got, want) => {
     const h = run({ tabs: tabsFor(page, pageTitle) });
     const item = { id: 7, url: cdn, finalUrl: cdn, filename: '26e2fb0b265b99d.mp4', referrer: page, totalBytes: 5e6 };
     await new Promise((resolve) => { h.listeners.onDeterminingFilename(item, () => {}); setTimeout(resolve, 200); });
-    expect('download with the page as referrer', h.sent[0]?.fileName, 'Funny Cat Video.mp4');
+    expect('a browser download with the page as referrer is sent untouched', `${h.sent[0]?.fileName} | ${h.sent[0]?.pageTitle}`, '26e2fb0b265b99d.mp4 | undefined');
   }
 
   // 4. No referrer at all, which some sites and policies produce.
@@ -119,14 +119,14 @@ const expect = (label, got, want) => {
     const h = run({ tabs: tabsFor(page, pageTitle) });
     const item = { id: 7, url: cdn, finalUrl: cdn, filename: '26e2fb0b265b99d.mp4', referrer: '', totalBytes: 5e6 };
     await new Promise((resolve) => { h.listeners.onDeterminingFilename(item, () => {}); setTimeout(resolve, 200); });
-    expect('download with no referrer uses the tab in front', h.sent[0]?.fileName, 'Funny Cat Video.mp4');
+    expect('a browser download with no referrer is sent untouched', `${h.sent[0]?.fileName} | ${h.sent[0]?.pageTitle}`, '26e2fb0b265b99d.mp4 | undefined');
   }
 
   // 5. The file's own name is requested.
   {
     const h = run({ nameFrom: 'File', tabs: tabsFor(page, pageTitle) });
     await h.ctx.sendMedia({ url: cdn, tabUrl: page, tabId: 5, kind: 'video' });
-    expect('the File setting keeps the address name', h.sent[0]?.fileName, '26e2fb0b265b99d.mp4');
+    expect('the note says which version and how the tab was found', h.sent[0]?.nameNote, 'v?: title of a tab found by its own tab, 15 characters');
   }
   process.exit(failed ? 1 : 0);
 })();

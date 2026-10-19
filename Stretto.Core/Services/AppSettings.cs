@@ -147,7 +147,7 @@ public sealed class AppSettings
 
     /// <summary>A clashing name gets a short tag from where it came from ("Title [a8f3k2]")
     /// rather than a number. Only matters when <see cref="OverwriteExisting"/> is off.</summary>
-    public bool TagClashingNames { get; set; }
+    public bool TagClashingNames { get; set; } = true;
 
     /// <summary>Where a browser-captured video's name comes from. Smart uses the page's
     /// title only when the address's own name is generic, like master.m3u8.</summary>
@@ -400,6 +400,14 @@ public sealed class AppSettings
                 if (!SkipHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
                     SkipHosts.Add(host);
             SettingsVersion = 4;
+        }
+
+        if (SettingsVersion < 5)
+        {
+            // Version 5: a taken name gets a tag from the original file name rather than a
+            // number. It was opt-in while new; the unset default of off becomes on, once.
+            TagClashingNames = true;
+            SettingsVersion = 5;
         }
     }
 

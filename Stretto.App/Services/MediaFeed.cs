@@ -13,6 +13,10 @@ public sealed record FedMedia
     public required string Url { get; init; }
     public required string Name { get; init; }
 
+    /// <summary>The page's title, when the extension had one. The saved file's name is chosen
+    /// from it when the video is downloaded.</summary>
+    public string? PageTitle { get; init; }
+
     /// <summary>stream, video or audio, as classified by the extension.</summary>
     public required string Kind { get; init; }
 
@@ -36,9 +40,7 @@ public sealed record FedMedia
         {
             Url = new Uri(Url),
             Label = Name,
-            // The extension's name for it, unless it had nothing and the host stood in.
-            FileName = Uri.TryCreate(Url, UriKind.Absolute, out var address)
-                && !string.Equals(Name, address.Host, StringComparison.OrdinalIgnoreCase) ? Name : null,
+            PageTitle = PageTitle,
             Kind = kind,
             Source = "browser",
             Cookie = Cookie,
@@ -62,13 +64,17 @@ public sealed class MediaFeed
             return;
 
         // The same video reported again is usually the extension catching up: the page's
-        // title arrives after the first sighting, and the name it sends changes from the
-        // address's own to the title. Take the newer name, keep everything else.
+        // title arrives after the first sighting. Take the newer name and title, keep
+        // everything else.
         var seen = Items.ToList().FindIndex(m => m.Url == report.Url);
         if (seen >= 0)
         {
-            if (!string.IsNullOrWhiteSpace(report.Name) && report.Name != uri.Host && report.Name != Items[seen].Name)
-                Items[seen] = Items[seen] with { Name = report.Name };
+            var current = Items[seen];
+            var name = !string.IsNullOrWhiteSpace(report.Name) && report.Name != uri.Host ? report.Name : current.Name;
+            var title = string.IsNullOrWhiteSpace(report.PageTitle) ? current.PageTitle : report.PageTitle;
+
+            if (name != current.Name || title != current.PageTitle)
+                Items[seen] = current with { Name = name, PageTitle = title };
 
             return;
         }
@@ -77,6 +83,7 @@ public sealed class MediaFeed
         {
             Url = report.Url,
             Name = string.IsNullOrWhiteSpace(report.Name) ? uri.Host : report.Name,
+            PageTitle = string.IsNullOrWhiteSpace(report.PageTitle) ? null : report.PageTitle,
             Kind = report.Kind ?? "video",
             Mime = report.Mime,
             Size = report.Size ?? 0,

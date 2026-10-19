@@ -134,6 +134,7 @@ public sealed partial class DownloadService
             TargetDirectory = options.Directory ?? DefaultDirectory,
             SortByType = options.SortByType && options.Directory is null,
             PreferredFileName = options.FileName,
+            NamedFromTitle = options.NamedFromTitle,
             Connections = options.Connections,
             Cookie = options.Cookie,
             IsStream = options.IsStream,
@@ -529,7 +530,7 @@ public sealed partial class DownloadService
             Headers = headers,
             Cookie = item.Cookie,
             Overwrite = _settings.OverwriteExisting,
-            TagClashes = _settings.TagClashingNames,
+            TagClashes = _settings.TagClashingNames && item.NamedFromTitle,
             UseServerTimestamp = _settings.UseServerTimestamp,
         };
     }

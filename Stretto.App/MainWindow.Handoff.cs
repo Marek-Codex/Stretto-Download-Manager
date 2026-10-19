@@ -239,6 +239,17 @@ public sealed partial class MainWindow
 
     private async Task<bool> DecideOnUiThreadAsync(HandoffRequest request)
     {
+        // A title arrives only from the popup's "send", for a video the person picked by hand.
+        // A download the browser started carries none and is never renamed. When there is one,
+        // the name is chosen here so the dialog shows the name that will be used.
+        if (!string.IsNullOrWhiteSpace(request.PageTitle) && Uri.TryCreate(request.Url, UriKind.Absolute, out var address))
+        {
+            var chosen = FileNaming.Choose(
+                request.FileName, address, request.PageTitle, _settings.NameFrom, _settings.VideoTypes);
+
+            request = request with { FileName = chosen, NamedFromTitle = chosen != request.FileName };
+        }
+
         // A refresh in progress claims the next capture. Checked first: the user has just
         // gone and clicked the download button again specifically to produce this, so
         // asking them what to do with it would be asking a question they already answered.
@@ -491,6 +502,7 @@ public sealed partial class MainWindow
             ProxyUsername = chosen?.ProxyUsername,
             ProxyPassword = chosen?.ProxyPassword,
             IsStream = request.IsStream,
+            NamedFromTitle = request.NamedFromTitle,
             StartNow = startNow,
         });
 
