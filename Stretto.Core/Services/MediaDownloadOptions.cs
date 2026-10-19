@@ -11,6 +11,7 @@ public static class MediaDownloadOptions
         string? directory = null) => new()
     {
         Directory = directory,
+        FileName = candidate.FileName,
         IsStream = candidate.NeedsMuxing,
         IsSiteVideo = candidate.Kind == MediaKind.Site,
         FormatId = candidate.FormatId,

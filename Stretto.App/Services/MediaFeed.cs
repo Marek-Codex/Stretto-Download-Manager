@@ -36,6 +36,9 @@ public sealed record FedMedia
         {
             Url = new Uri(Url),
             Label = Name,
+            // The extension's name for it, unless it had nothing and the host stood in.
+            FileName = Uri.TryCreate(Url, UriKind.Absolute, out var address)
+                && !string.Equals(Name, address.Host, StringComparison.OrdinalIgnoreCase) ? Name : null,
             Kind = kind,
             Source = "browser",
             Cookie = Cookie,

@@ -46,6 +46,7 @@ public static class Program
         await runner.Run("runs the download service with no window", ServiceRunsHeadless);
         await runner.Run("tells two sources apart with a short tag", TagsSources);
         await runner.Run("tags a clashing name before numbering it", TagsClashingNames);
+        await runner.Run("saves a browser sighting under the name it was shown with", KeepsSightingName);
         await runner.Run("opens every connection at once when not adaptive", FixedFanOutIsUnchanged);
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
@@ -268,6 +269,23 @@ public static class Program
             FilePaths.ClashFree(folder.Path, "Cat.mp4", false), "no tag keeps the number");
         Assert.Equal(System.IO.Path.Combine(folder.Path, "Free.mp4"),
             FilePaths.ClashFree(folder.Path, "Free.mp4", false, tag: "a8f3k2"), "a free name is left alone");
+        return Task.CompletedTask;
+    }
+
+    private static Task KeepsSightingName()
+    {
+        var named = new MediaCandidate
+        {
+            Url = new Uri("https://cdn.example.com/26e2fb0b9a1c.mp4"),
+            Label = "Funny Cat Video",
+            Kind = MediaKind.Direct,
+            FileName = "Funny Cat Video.mp4",
+        };
+
+        var options = MediaDownloadOptions.FromCandidate(named, new AppSettings());
+        Assert.Equal("Funny Cat Video.mp4", options.FileName, "the shown name is the saved name");
+        Assert.Equal(null, MediaDownloadOptions.FromCandidate(named with { FileName = null }, new AppSettings()).FileName,
+            "no name decided leaves it to the server");
         return Task.CompletedTask;
     }
 

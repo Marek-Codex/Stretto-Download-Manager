@@ -202,7 +202,14 @@ function isGenericName(name) {
   if (/^(master|index|playlist|manifest|chunklist|video|audio|media|stream)[\w-]*\.(m3u8?|mpd)$/i.test(name)) return true;
 
   const stem = name.replace(/\.\w{2,5}$/, '');
-  return /^\d+$/.test(stem) || /^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i.test(stem);
+  if (/^\d+$/.test(stem) || /^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i.test(stem)) return true;
+
+  // Ids that are not pure hex: a long run with no spaces or underscores, a good share of
+  // digits, and no real word in it. "Inception2010" has a word; "26e2fb0b9a1c4d" does not.
+  if (stem.length < 8 || /[\s_]/.test(stem)) return false;
+  const digits = (stem.match(/\d/g) || []).length;
+  const longestWord = Math.max(0, ...(stem.match(/[A-Za-z]+/g) || []).map((run) => run.length));
+  return digits / stem.length >= 0.25 && longestWord < 7;
 }
 
 /** The tab showing a page, by address with the fragment ignored. The active one wins. */
