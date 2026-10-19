@@ -381,6 +381,16 @@ public sealed class AppSettings
                 DefaultConnections = 16;
             SettingsVersion = 3;
         }
+
+        if (SettingsVersion < 4)
+        {
+            // Version 4: the default skip list gained IPFS gateways, and a default only seeds
+            // a new file. Add what is missing; a host the user removes later stays removed.
+            foreach (var host in DefaultSkipHosts)
+                if (!SkipHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+                    SkipHosts.Add(host);
+            SettingsVersion = 4;
+        }
     }
 
     /// <summary>A hand-edited settings file must not be able to wedge the downloader.</summary>
