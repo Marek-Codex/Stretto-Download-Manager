@@ -1,10 +1,9 @@
-using Stretto.Core;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>
 /// An editable row in the Password manager. Separate from the stored record because the

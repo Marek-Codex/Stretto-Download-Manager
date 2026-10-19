@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Stretto.App.Dialogs;
-using Stretto.App.Models;
 using Stretto.App.Services;
 using Stretto.Core;
 using System.Diagnostics;

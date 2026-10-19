@@ -1,12 +1,10 @@
-using Stretto.App.Models;
-using Stretto.Core;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>
 /// A named, ordered set of downloads that runs as a unit, optionally on a timetable.

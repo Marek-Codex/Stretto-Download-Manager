@@ -1,4 +1,4 @@
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>How a new download should be set up. Mirrors the choices on the New dialog.</summary>
 public sealed record DownloadOptions

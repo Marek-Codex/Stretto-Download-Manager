@@ -1,7 +1,7 @@
+using Stretto.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Stretto.App.Models;
 
 using Stretto.App.Services;
 

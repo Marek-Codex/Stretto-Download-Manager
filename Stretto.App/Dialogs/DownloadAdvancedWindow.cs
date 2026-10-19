@@ -1,3 +1,4 @@
+using Stretto.Core;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -34,8 +35,8 @@ public sealed class DownloadAdvancedWindow : Window
     /// <summary>Null means "use the global settings". Otherwise the override for this download only.</summary>
     public ProxyMode? ProxyModeOverride => _proxyMode.SelectedIndex switch
     {
-        1 => Services.ProxyMode.None,
-        2 => Services.ProxyMode.Manual,
+        1 => ProxyMode.None,
+        2 => ProxyMode.Manual,
         _ => null,
     };
     public ProxyProtocol? ProxyProtocolOverride =>
@@ -74,8 +75,8 @@ public sealed class DownloadAdvancedWindow : Window
         _proxyProtocol.SelectedIndex = (int)(proxyProtocolOverride ?? settings.ProxyProtocol);
         _proxyMode.SelectedIndex = proxyOverride switch
         {
-            Services.ProxyMode.None => 1,
-            Services.ProxyMode.Manual => 2,
+            ProxyMode.None => 1,
+            ProxyMode.Manual => 2,
             _ => 0,
         };
         _proxyHost.Text = proxyHost;
@@ -167,9 +168,9 @@ public sealed class DownloadAdvancedWindow : Window
 
     private static string DescribeGlobal(AppSettings settings) => settings.ProxyMode switch
     {
-        Services.ProxyMode.None => "direct",
-        Services.ProxyMode.Manual when string.IsNullOrWhiteSpace(settings.ProxyHost) => "manual, no host",
-        Services.ProxyMode.Manual => $"{settings.ProxyProtocol} via {settings.ProxyHost}:{settings.ProxyPort}",
+        ProxyMode.None => "direct",
+        ProxyMode.Manual when string.IsNullOrWhiteSpace(settings.ProxyHost) => "manual, no host",
+        ProxyMode.Manual => $"{settings.ProxyProtocol} via {settings.ProxyHost}:{settings.ProxyPort}",
         _ => "system",
     };
 

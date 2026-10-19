@@ -1,4 +1,4 @@
-using Stretto.App.Models;
+using Stretto.Core;
 
 namespace Stretto.App.Services;
 

@@ -4,7 +4,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Stretto.App.Dialogs;
-using Stretto.App.Models;
 using Stretto.App.Services;
 using Stretto.Core;
 using System.Collections.ObjectModel;

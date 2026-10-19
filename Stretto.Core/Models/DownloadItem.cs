@@ -1,8 +1,7 @@
-using Stretto.App.Services;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Stretto.App.Models;
+namespace Stretto.Core;
 
 public enum DownloadStatus { Pending, Queued, Downloading, Paused, Complete, Failed }
 
@@ -168,11 +167,11 @@ public sealed class DownloadItem : INotifyPropertyChanged
 
     /// <summary>Cancels the in-flight download. Pausing is just cancelling: the engine
     /// leaves a resume point behind, so resume is a fresh call with the same arguments.</summary>
-    internal CancellationTokenSource? Cancellation { get; set; }
+    public CancellationTokenSource? Cancellation { get; set; }
 
     /// <summary>True while a transfer is actually in flight. Distinguishes "queued and
     /// running" from "queued, waiting for a free slot", which look the same to the user.</summary>
-    internal bool IsRunning { get; set; }
+    public bool IsRunning { get; set; }
 
     public long BytesCompleted
     {

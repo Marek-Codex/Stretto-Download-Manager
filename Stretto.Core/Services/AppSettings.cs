@@ -1,9 +1,8 @@
-using Stretto.Core;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>How downloads reach the network.</summary>
 public enum ProxyMode { System, None, Manual }
@@ -232,7 +231,7 @@ public sealed class AppSettings
     // New Download window's Advanced pane, for the one host that needs a different way out.
 
     public ProxyMode ProxyMode { get; set; } = ProxyMode.System;
-    public ProxyProtocol ProxyProtocol { get; set; } = global::Stretto.App.Services.ProxyProtocol.Http;
+    public ProxyProtocol ProxyProtocol { get; set; } = ProxyProtocol.Http;
     public string ProxyHost { get; set; } = "";
     public int ProxyPort { get; set; }
     public string ProxyUsername { get; set; } = "";
@@ -248,7 +247,7 @@ public sealed class AppSettings
                 return SegmentedDownloader.NoProxy;
 
             if (ProxyMode != ProxyMode.Manual
-                || ProxyProtocol == global::Stretto.App.Services.ProxyProtocol.Socks5
+                || ProxyProtocol == ProxyProtocol.Socks5
                 || string.IsNullOrWhiteSpace(ProxyHost))
                 return null;
 
@@ -263,7 +262,7 @@ public sealed class AppSettings
 
     [JsonIgnore]
     public Socks5ProxyOptions? ResolvedSocks5Proxy =>
-        ProxyMode == ProxyMode.Manual && ProxyProtocol == global::Stretto.App.Services.ProxyProtocol.Socks5
+        ProxyMode == ProxyMode.Manual && ProxyProtocol == ProxyProtocol.Socks5
             && !string.IsNullOrWhiteSpace(ProxyHost)
             ? new Socks5ProxyOptions(ProxyHost.Trim(), Math.Clamp(ProxyPort, 1, 65535),
                 string.IsNullOrWhiteSpace(ProxyUsername) ? null : ProxyUsername,

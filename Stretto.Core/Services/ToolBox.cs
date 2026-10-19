@@ -1,7 +1,6 @@
-using Stretto.Core;
 using System.IO.Compression;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>The two external programs Stretto can use, and where to get them.</summary>
 public enum Tool

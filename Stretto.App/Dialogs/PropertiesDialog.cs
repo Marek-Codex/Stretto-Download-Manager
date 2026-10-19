@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Stretto.App.Models;
 using Stretto.Core;
 using System.Text;
 
@@ -240,14 +239,14 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
         if (!string.IsNullOrEmpty(item.Referrer))
             headers.AppendLine($"Referer: {item.Referrer}");
 
-        if (!string.IsNullOrEmpty(item.Username) || Services.SiteCredentials.For(item.Url) is not null)
+        if (!string.IsNullOrEmpty(item.Username) || SiteCredentials.For(item.Url) is not null)
             headers.AppendLine("Authorization: sent on server challenge (credentials not shown)");
 
         // Captured from the browser. Names always, values only for the few known to carry
         // nothing secret -- the same list that is allowed to be saved to disk.
         if (item.Headers is { Count: > 0 } captured)
         {
-            var safe = Services.DownloadStore.KeepableHeaders(captured) ?? [];
+            var safe = DownloadStore.KeepableHeaders(captured) ?? [];
             foreach (var (name, value) in captured.OrderBy(h => h.Key, StringComparer.OrdinalIgnoreCase))
                 headers.AppendLine(safe.ContainsKey(name) ? $"{name}: {value}" : $"{name}: (from the browser, not shown)");
         }

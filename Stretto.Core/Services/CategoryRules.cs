@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>
 /// One row of the Download categories table: a name, the file types that land in it, and

@@ -1,7 +1,7 @@
+using Stretto.Core;
 using Microsoft.UI.Windowing;
 using Stretto.App.Dialogs;
 using Stretto.App.Interop;
-using Stretto.App.Models;
 
 namespace Stretto.App;
 

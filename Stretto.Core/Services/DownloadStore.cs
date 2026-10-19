@@ -1,9 +1,7 @@
-using Stretto.App.Models;
-using Stretto.Core;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Stretto.App.Services;
+namespace Stretto.Core;
 
 /// <summary>
 /// Persists the download list between runs. The bytes themselves already survive via the
