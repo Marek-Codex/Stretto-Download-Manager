@@ -40,6 +40,9 @@ public static class Program
         await runner.Run("adds connections while a per-connection cap is the bottleneck", RampsUpUnderPerConnectionCap);
         await runner.Run("stops adding connections and finishes when the server refuses extras", BacksOffWhenRefused);
         await runner.Run("stops adding connections once a speed limit is what holds the speed", RampStopsAtSpeedLimit);
+        await runner.Run("picks a free name instead of overwriting", PicksFreeFileName);
+        await runner.Run("reuses a file that is its own partial download", ReusesOwnPartial);
+        await runner.Run("retries what can fix itself and not what cannot", ClassifiesRetries);
         await runner.Run("opens every connection at once when not adaptive", FixedFanOutIsUnchanged);
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
@@ -156,6 +159,42 @@ public static class Program
     private const string AbcMd5 = "900150983cd24fb0d6963f7d28e17f72";
     private const string AbcSha1 = "a9993e364706816aba3e25717850c26c9cd0d89d";
     private const string AbcSha256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+    private static Task PicksFreeFileName()
+    {
+        using var folder = new TempFolder();
+        File.WriteAllText(System.IO.Path.Combine(folder.Path, "a.zip"), "x");
+        File.WriteAllText(System.IO.Path.Combine(folder.Path, "a (2).zip"), "x");
+
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "a (3).zip"),
+            FilePaths.ClashFree(folder.Path, "a.zip", overwrite: false), "next free number");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "a.zip"),
+            FilePaths.ClashFree(folder.Path, "a.zip", overwrite: true), "overwrite keeps the name");
+        Assert.Equal(System.IO.Path.Combine(folder.Path, "b.zip"),
+            FilePaths.ClashFree(folder.Path, "b.zip", overwrite: false), "a free name is left alone");
+        return Task.CompletedTask;
+    }
+
+    private static Task ReusesOwnPartial()
+    {
+        using var folder = new TempFolder();
+        var path = System.IO.Path.Combine(folder.Path, "a.zip");
+        File.WriteAllText(path, "x");
+
+        Assert.Equal(path, FilePaths.ClashFree(folder.Path, "a.zip", false, p => p == path), "own partial is resumed");
+        Assert.True(FilePaths.ClashFree(folder.Path, "a.zip", false, _ => false) != path, "someone else's file is avoided");
+        return Task.CompletedTask;
+    }
+
+    private static Task ClassifiesRetries()
+    {
+        Assert.False(RetryPolicy.IsPermanent(new HttpRequestException("x", null, System.Net.HttpStatusCode.BadGateway)), "5xx can recover");
+        Assert.False(RetryPolicy.IsPermanent(new IOException("dropped")), "a dropped connection can recover");
+        Assert.True(RetryPolicy.IsPermanent(new HttpRequestException("x", null, System.Net.HttpStatusCode.Forbidden)), "403 will repeat");
+        Assert.True(RetryPolicy.IsPermanent(new HttpRequestException("x", null, System.Net.HttpStatusCode.NotFound)), "404 will repeat");
+        Assert.True(RetryPolicy.IsPermanent(new InvalidOperationException("html page")), "a sign-in page will repeat");
+        return Task.CompletedTask;
+    }
 
     private static async Task HashesFile()
     {
