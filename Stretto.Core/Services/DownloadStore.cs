@@ -35,6 +35,11 @@ public sealed class DownloadStore
         public string? PreferredFileName { get; set; }
         public bool SortByType { get; set; }
         public bool IsStream { get; set; }
+        public bool IsSiteVideo { get; set; }
+        public string? FormatId { get; set; }
+        public int? HlsProgramIndex { get; set; }
+        public string? Mime { get; set; }
+        public bool NamedFromTitle { get; set; }
         public int Connections { get; set; } = 8;
         public ProxyMode? ProxyModeOverride { get; set; }
         public ProxyProtocol? ProxyProtocolOverride { get; set; }
@@ -110,6 +115,11 @@ public sealed class DownloadStore
             PreferredFileName = i.PreferredFileName,
             SortByType = i.SortByType,
             IsStream = i.IsStream,
+            IsSiteVideo = i.IsSiteVideo,
+            FormatId = i.FormatId,
+            HlsProgramIndex = i.HlsProgramIndex,
+            Mime = i.Mime,
+            NamedFromTitle = i.NamedFromTitle,
             Connections = i.Connections,
             ProxyModeOverride = i.ProxyModeOverride,
             ProxyProtocolOverride = i.ProxyProtocolOverride,
@@ -132,18 +142,42 @@ public sealed class DownloadStore
 
     /// <summary>What was last written, so an unchanged list is not rewritten every 10 seconds.</summary>
     private string? _lastWritten;
+    private readonly object _saveGate = new();
+    private long _saveRevision;
+    private long _committedRevision;
+
+    public Task SaveAsync(IEnumerable<DownloadItem> items)
+    {
+        // Snapshot observable UI state before moving serialization and IO to a worker.
+        var revision = Interlocked.Increment(ref _saveRevision);
+        var entries = ToEntries(items);
+        var path = ListPath;
+        return Task.Run(() => SaveEntries(entries, path, revision));
+    }
 
     public void Save(IEnumerable<DownloadItem> items)
     {
+        var revision = Interlocked.Increment(ref _saveRevision);
+        SaveEntries(ToEntries(items), ListPath, revision);
+    }
+
+    private void SaveEntries(List<Entry> entries, string path, long revision)
+    {
+        lock (_saveGate)
         try
         {
-            var json = JsonSerializer.Serialize(ToEntries(items), Options);
+            if (revision < _committedRevision) return;
+            var json = JsonSerializer.Serialize(entries, Options);
             if (json == _lastWritten)
+            {
+                _committedRevision = revision;
                 return;
+            }
 
-            System.IO.Directory.CreateDirectory(Directory);
-            AtomicFile.WriteAllText(ListPath, json);
+            System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            AtomicFile.WriteAllText(path, json);
             _lastWritten = json;
+            _committedRevision = revision;
         }
         catch (Exception exception) when (exception is JsonException or IOException)
         {

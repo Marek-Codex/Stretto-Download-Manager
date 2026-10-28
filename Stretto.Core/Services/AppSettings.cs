@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Stretto.Core;
 
@@ -219,6 +221,7 @@ public sealed class AppSettings
     /// Plenty of sites hand out a one-time token and then throttle or reject the extra
     /// range requests, so more segments makes a download slower or kills it outright.
     /// Keyed by hostname; anything not listed uses <see cref="DefaultConnections"/>.
+    /// The HTTP service also applies this as a shared budget across all downloads.
     /// </summary>
     public Dictionary<string, int> HostConnectionLimits { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -246,7 +249,30 @@ public sealed class AppSettings
     public string ProxyHost { get; set; } = "";
     public int ProxyPort { get; set; }
     public string ProxyUsername { get; set; } = "";
+    [JsonIgnore]
     public string ProxyPassword { get; set; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ProtectedProxyPassword
+    {
+        get
+        {
+            if (ProxyPassword.Length == 0 || !OperatingSystem.IsWindows()) return null;
+            try { return Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(ProxyPassword), null, DataProtectionScope.CurrentUser)); }
+            catch (CryptographicException) { AppLog.Write("Could not protect the proxy password; it was not saved."); return null; }
+        }
+        set
+        {
+            if (string.IsNullOrEmpty(value) || !OperatingSystem.IsWindows()) return;
+            try { ProxyPassword = Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(value), null, DataProtectionScope.CurrentUser)); }
+            catch (Exception exception) when (exception is CryptographicException or FormatException)
+            { AppLog.Write("Could not read the protected proxy password. Re-enter it in Settings."); }
+        }
+    }
+
+    // Read older settings once; never serialize the old plaintext field again.
+    [JsonPropertyName("ProxyPassword"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyProxyPassword { get => null; set => ProxyPassword = value ?? ""; }
 
     /// <summary>Null means "let the handler use the system proxy".</summary>
     [JsonIgnore]
@@ -343,9 +369,40 @@ public sealed class AppSettings
 
     [JsonIgnore]
     public string ResolvedDownloadFolder => string.IsNullOrWhiteSpace(DownloadFolder)
-        ? System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
+        ? SystemDownloadsFolder()
         : DownloadFolder;
+
+    /// <summary>
+    /// Where Windows says Downloads is. Not %USERPROFILE%\Downloads: people move it (to
+    /// another drive, into OneDrive), and Explorer, browsers and this have to agree.
+    /// </summary>
+    private static string SystemDownloadsFolder()
+    {
+        var fallback = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        if (!OperatingSystem.IsWindows())
+            return fallback;
+
+        try
+        {
+            if (SHGetKnownFolderPath(DownloadsFolderId, 0, IntPtr.Zero, out var buffer) != 0)
+                return fallback;
+            try { return System.Runtime.InteropServices.Marshal.PtrToStringUni(buffer) is { Length: > 0 } path ? path : fallback; }
+            finally { System.Runtime.InteropServices.Marshal.FreeCoTaskMem(buffer); }
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return fallback;
+        }
+    }
+
+    /// <summary>FOLDERID_Downloads.</summary>
+    private static readonly Guid DownloadsFolderId = new("374DE290-123F-4565-9164-39C4925E467B");
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int SHGetKnownFolderPath(
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPStruct)] Guid folderId,
+        uint flags, IntPtr token, out IntPtr path);
 
     private static string Path => System.IO.Path.Combine(DownloadStore.Directory, "settings.json");
 

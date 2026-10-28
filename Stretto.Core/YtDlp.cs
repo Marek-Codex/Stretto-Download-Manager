@@ -80,8 +80,14 @@ public sealed partial class YtDlp(string? executable = null)
             if (probe is null)
                 return false;
 
-            probe.WaitForExit(5000);
-            return probe.HasExited && probe.ExitCode == 0;
+            _ = probe.StandardOutput.ReadToEndAsync();
+            _ = probe.StandardError.ReadToEndAsync();
+            if (!probe.WaitForExit(5000))
+            {
+                Kill(probe);
+                return false;
+            }
+            return probe.ExitCode == 0;
         }
         catch (Exception)
         {
@@ -261,9 +267,14 @@ public sealed partial class YtDlp(string? executable = null)
         {
             "--newline",                       // progress on its own line, not carriage returns
             "--no-warnings",
+            "--ignore-config",                // user CLI config must not redirect our output
+            "--no-simulate",
+            "--no-quiet",
+            "--progress",
+            "--print", "after_move:STRETTO_OUTPUT:%(filepath)j",
             "--no-playlist",                   // one entry per download item
             "--restrict-filenames",
-            "-o", Path.Combine(directory, "%(title)s.%(ext)s"),
+            "-o", Path.Combine(Path.GetFullPath(directory).Replace("%", "%%"), "%(title)s.%(ext)s"),
         };
 
         if (!string.IsNullOrEmpty(formatId))
@@ -274,10 +285,12 @@ public sealed partial class YtDlp(string? executable = null)
             arguments.Add($"{formatId}+bestaudio/{formatId}");
         }
 
+        if (ToolBox.Local(Tool.Ffmpeg) is { } ffmpeg)
+            arguments.AddRange(["--ffmpeg-location", ffmpeg]);
+
         arguments.Add(url);
 
-        var destination = "";
-        var merged = "";
+        var outputs = new List<string>();
 
         var exitCode = await RunAsync(arguments, ct, line =>
         {
@@ -288,32 +301,37 @@ public sealed partial class YtDlp(string? executable = null)
                 return;
             }
 
-            // The final name is whatever it last said it was writing. A merge happens after
-            // the streams are fetched, so it wins over the per stream destinations.
-            if (DestinationLine().Match(line) is { Success: true } destinationMatch)
-                destination = destinationMatch.Groups[1].Value.Trim();
-
-            if (MergeLine().Match(line) is { Success: true } mergeMatch)
-                merged = mergeMatch.Groups[1].Value.Trim();
+            if (line.StartsWith(OutputPrefix, StringComparison.Ordinal))
+                outputs.Add(line[OutputPrefix.Length..]);
         }).ConfigureAwait(false);
 
         if (exitCode != 0)
             throw new InvalidOperationException("yt-dlp could not download this video.");
 
-        var path = merged.Length > 0 ? merged : destination;
+        return ValidateOutput(outputs, directory);
+    }
 
-        if (path.Length > 0 && File.Exists(path))
-            return path;
+    private const string OutputPrefix = "STRETTO_OUTPUT:";
 
-        // It can report a name it then post-processes into another extension. Falling back
-        // to the newest file in the folder beats failing after a successful download.
-        var newest = new DirectoryInfo(directory)
-            .EnumerateFiles()
-            .OrderByDescending(f => f.LastWriteTimeUtc)
-            .FirstOrDefault();
-
-        return newest?.FullName
-            ?? throw new InvalidOperationException("yt-dlp finished but wrote no file.");
+    private static string ValidateOutput(List<string> outputs, string directory)
+    {
+        // Human-readable progress and destination logs can change, and another download
+        // may finish in this folder concurrently. Only this invocation's after_move path
+        // establishes which file it produced (including an already-downloaded result).
+        if (outputs.Count != 1)
+            throw new InvalidDataException("yt-dlp did not identify exactly one finished file. No file was selected.");
+        string? reported;
+        try { reported = JsonSerializer.Deserialize<string>(outputs[0]); }
+        catch (JsonException exception)
+        { throw new InvalidDataException("yt-dlp returned an invalid finished-file path.", exception); }
+        if (string.IsNullOrWhiteSpace(reported) || !Path.IsPathFullyQualified(reported))
+            throw new InvalidDataException("yt-dlp did not return an absolute finished-file path.");
+        var path = Path.GetFullPath(reported);
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)) + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!path.StartsWith(root, comparison) || !File.Exists(path))
+            throw new InvalidDataException("yt-dlp's finished file is missing or outside the chosen download folder.");
+        return path;
     }
 
     private async Task<int> RunAsync(List<string> arguments, CancellationToken ct, Action<string> onLine)
@@ -386,9 +404,4 @@ public sealed partial class YtDlp(string? executable = null)
     [GeneratedRegex(@"^\[download\]\s+([\d.]+)%", RegexOptions.CultureInvariant)]
     private static partial Regex ProgressLine();
 
-    [GeneratedRegex(@"^\[download\]\s+Destination:\s*(.+)$", RegexOptions.CultureInvariant)]
-    private static partial Regex DestinationLine();
-
-    [GeneratedRegex(@"Merging formats into\s+""(.+)""", RegexOptions.CultureInvariant)]
-    private static partial Regex MergeLine();
 }

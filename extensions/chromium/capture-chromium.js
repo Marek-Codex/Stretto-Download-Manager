@@ -16,32 +16,55 @@
  *
  * The quick checks (switched on, app reachable, rules) run while the browser holds the
  * download, and a download Stretto does not want is released untouched with suggest(), so
- * it keeps its original request, form POSTs included. Once Stretto is going to be asked,
- * the browser's copy is cancelled at once, as XDM does: holding it through the New Download
- * window let Brave show its own Save dialog as well. If Stretto then declines, the download
- * is re-issued to the browser by address, which is the one route that loses a POST.
+ * it keeps its original request, form POSTs included. Holding it through the New Download
+ * window can let Brave show its own Save dialog too. Preserving the original request is
+ * more important: it is cancelled only after Stretto accepts, never re-issued by URL.
  */
-// Addresses Stretto handed back, re-issued to the browser. The listener lets exactly one
-// download of each through, or giving it back would just capture it again.
-const passThrough = new Set();
+// DownloadItem does not expose the HTTP method. Keep a short, bounded history of the
+// requests that can become downloads, without bodies or credentials. Session storage
+// survives service-worker suspension. If history is unavailable, keep it in the browser.
+const requestHistoryStore = api.storage.session;
+let requestHistoryWrites = Promise.resolve();
+let requestHistoryHealthy = true;
+const REQUEST_HISTORY_KEY = 'strettoDownloadRequests';
+const REQUEST_HISTORY_MAX = 256;
+const REQUEST_HISTORY_AGE = 120000;
+
+api.webRequest.onBeforeRequest.addListener(details => {
+  if (!requestHistoryStore || !/^https?:/i.test(details.url)) return;
+  requestHistoryWrites = requestHistoryWrites.then(async () => {
+    const now = Date.now();
+    const stored = await requestHistoryStore.get({ [REQUEST_HISTORY_KEY]: [] });
+    const history = (stored[REQUEST_HISTORY_KEY] || []).filter(entry => now - entry.time < REQUEST_HISTORY_AGE);
+    history.push({ url: details.url, method: details.method, time: details.timeStamp });
+    await requestHistoryStore.set({ [REQUEST_HISTORY_KEY]: history.slice(-REQUEST_HISTORY_MAX) });
+  }).catch(() => { requestHistoryHealthy = false; });
+}, { urls: ['http://*/*', 'https://*/*'], types: ['main_frame', 'sub_frame', 'other'] });
+
+async function isKnownGet(item, url) {
+  if (!requestHistoryStore) return false;
+  await requestHistoryWrites;
+  if (!requestHistoryHealthy) return false;
+  const start = Date.parse(item.startTime);
+  if (!Number.isFinite(start)) return false;
+  try {
+    const stored = await requestHistoryStore.get({ [REQUEST_HISTORY_KEY]: [] });
+    const matches = (stored[REQUEST_HISTORY_KEY] || []).filter(entry =>
+      (entry.url === item.url || entry.url === url) && Math.abs(entry.time - start) <= 5000 &&
+      Date.now() - entry.time < REQUEST_HISTORY_AGE);
+    return matches.length > 0 && matches.every(entry => entry.method === 'GET');
+  } catch { return false; }
+}
 
 api.downloads.onDeterminingFilename.addListener((item, suggest) => {
   const url = item.finalUrl || item.url;
   if (!url || !/^https?:/i.test(url)) return false;
 
-  if (passThrough.delete(item.url) || passThrough.delete(url)) return false;
-
   // Returned synchronously, before any await, so the browser waits from this instant.
   claim(item, url, suggest).then((result) => {
     if (result === 'kept') suggest();
   }).catch((error) => {
-    // Nothing in claim is meant to throw, and everything past the browser's cancel is
-    // already guarded, so this is the last-resort path rather than a real one. But the
-    // browser is holding a download open with no dialog while this promise is
-    // outstanding, and a rejection would leave it stuck with nothing on screen to say why.
-    // If the throw happened before the cancel, suggest() hands the download straight back.
-    // If it happened after, the browser's copy is already gone and this does nothing --
-    // which is why the code after the cancel keeps its own try/catch.
+    // Every failure before acceptance releases the original request untouched.
     console.info(`Stretto: could not decide on ${url}: ${error.message}`);
     try { suggest(); } catch { /* released either way */ }
   });
@@ -50,32 +73,11 @@ api.downloads.onDeterminingFilename.addListener((item, suggest) => {
 });
 
 /**
- * Starts a download again in the browser, after Stretto was asked and said no. The
- * original was already cancelled by then, so this is how "let the browser have it" still
- * works. Cookies come along automatically; a download that began as a form POST cannot be
- * repeated from its address, which is the one case this loses.
- */
-async function giveBackToBrowser(item, url) {
-  passThrough.add(url);
-  try {
-    await api.downloads.download({ url });
-  } catch (error) {
-    passThrough.delete(url);
-    notify(`The browser could not restart this download (${error.message}).`);
-  }
-}
-
-/**
  * Decides whether Stretto takes this download, and takes it if so.
  *
  * Returns 'kept' when the browser should carry on with its own download (nothing was
- * cancelled), or 'handled' once the browser's copy is cancelled -- whether Stretto then
- * takes it or gives it back through a fresh browser download.
- *
- * The browser's copy is cancelled *before* Stretto is asked, which is how XDM does it.
- * Holding it open while the New Download window waited on a person was the original
- * design, but Brave with "ask where to save each file" shows its own Save dialog anyway,
- * so the user got two dialogs for one download.
+ * cancelled), or 'handled' after acceptance and cancellation. Some browsers can show
+ * their Save dialog while waiting; do not trade a recoverable request for hiding a dialog.
  */
 async function claim(item, url, suggest) {
   // Every way a download is given back to the browser logs why, so "the browser asked me
@@ -87,6 +89,7 @@ async function claim(item, url, suggest) {
 
   let cfg = await config();
   if (!cfg.enabled) return giveBack('monitoring is switched off in the popup');
+  if (!await isKnownGet(item, url)) return giveBack('the request is not a known replayable GET');
 
   // A site on the skip list is released at once from the cached rules, before any call to
   // the app: it never needed the app's answer, and the browser is holding the download
@@ -98,9 +101,9 @@ async function claim(item, url, suggest) {
     return giveBack('the site is on the skip list');
   }
 
-  const ready = await ensureConnection(cfg);
+  const ready = await connectWithRules(cfg);
   if (!ready) {
-    notify('Stretto is not running, or has not allowed this extension yet.');
+    notifyOffline();
     return giveBack('the app could not be reached');
   }
 
@@ -108,7 +111,7 @@ async function claim(item, url, suggest) {
   // is local, so there is no reason to trust a copy that can be minutes old. The cache used
   // to refresh only every five minutes, so a site removed from the skip list kept being
   // skipped until then, which looked like the setting did nothing.
-  cfg = { ...ready, rules: await refreshRules(ready) };
+  cfg = ready;
 
   const filename = item.filename ? item.filename.split(/[\/]/).pop() : '';
 
@@ -120,17 +123,7 @@ async function claim(item, url, suggest) {
   if (shouldSkip(cfg, url, filename, size, item.referrer))
     return giveBack(`a capture rule skips it (type "${extensionOf(url, filename) || 'none'}")`);
 
-  // From here Stretto is being asked, so the browser's copy goes now, before its Save
-  // dialog can appear. Everything below either takes it or re-issues it to the browser.
-  try {
-    await api.downloads.cancel(item.id);
-    await api.downloads.erase({ id: item.id });
-  } catch {
-    // Already gone from the browser's list; nothing to undo.
-  }
-  try { suggest(); } catch { /* the listener is released either way */ }
-
-  // Cookies are read after the cancel: they live in the browser's jar, not the download.
+  // Keep the original response alive until the user/app has actually accepted it.
   const cookie = (await cookieHeaderFor(url)) || null;
 
 
@@ -151,16 +144,22 @@ async function claim(item, url, suggest) {
       mime: item.mime || null,
     });
   } catch (error) {
-    notify(`Stretto is not reachable (${error.message}). The browser is handling this download.`);
-    console.info(`Stretto: gave ${url} back to the browser: sending it failed: ${error.message}`);
-    await giveBackToBrowser(item, url);
-    return 'handled';
+    console.info(`Stretto: sending failed: ${error.message}`);
+    notify('Stretto stopped answering, so the browser is handling this download.');
+    return giveBack('the app stopped answering');
   }
 
   if (!taken) {
-    console.info(`Stretto: gave ${url} back to the browser: Stretto answered "let the browser have it"`);
-    await giveBackToBrowser(item, url);
+    return giveBack('Stretto declined');
   }
-
+  try {
+    await api.downloads.cancel(item.id);
+  } catch {
+    notify('Stretto accepted this download, but the browser copy could not be stopped. Check both download lists.');
+    return 'kept';
+  }
+  // Erasing is cosmetic. Its failure must not release a cancelled request as a new one.
+  try { await api.downloads.erase({ id: item.id }); } catch { /* retain cancelled history */ }
+  try { suggest(); } catch { /* cancellation already released it */ }
   return 'handled';
 }

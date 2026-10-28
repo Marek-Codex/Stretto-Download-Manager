@@ -32,14 +32,18 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
     private readonly HttpClient _http = http ?? CreateDefaultClient();
     private readonly int _maxRetries = Math.Clamp(maxRetriesPerSegment, 0, 20);
+    private readonly HostRequestBudget _hostBudget = new(_ => MaxConnections);
 
     /// <summary>Per-download mutable counters, kept off the instance so one downloader can serve many jobs.</summary>
     private sealed class Job
     {
         public long Bytes;
         public int Active;
+        public int Connections;
         public int Peak;
         public int Refused;
+        public int Target;
+        public int Retire;
     }
 
     /// <summary>Connections an adaptive download opens with, before it has measured anything.</summary>
@@ -79,8 +83,10 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         private TimeSpan _lastAt = TimeSpan.Zero;
         private double _rateBefore;
         private bool _probing;
+        private int _connectionsBefore;
 
         public bool Done { get; private set; }
+        public int? RetireTo { get; private set; }
 
         /// <returns>How many connections to open now.</returns>
         public int Evaluate(long bytes, int running, int ceiling, long remaining, bool refused)
@@ -91,8 +97,9 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             _lastBytes = bytes;
             _lastAt = now;
 
-            if (refused || running >= ceiling)
+            if (refused)
             {
+                RetireTo = Math.Max(1, _connectionsBefore > 0 ? _connectionsBefore : running / 2);
                 Done = true;
                 return 0;
             }
@@ -102,10 +109,17 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 // The last batch did not pay for itself: this is as fast as it goes.
                 if (rate < _rateBefore * RampGain)
                 {
+                    RetireTo = _connectionsBefore;
                     Done = true;
                     return 0;
                 }
                 _probing = false;
+            }
+
+            if (running >= ceiling)
+            {
+                Done = true;
+                return 0;
             }
 
             if (rate > 0 && remaining / rate < RampMinimumRemainingSeconds)
@@ -115,6 +129,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             }
 
             _rateBefore = rate;
+            _connectionsBefore = running;
             _probing = true;
             return Math.Min(ceiling - running, Math.Max(2, running / 2));
         }
@@ -324,10 +339,12 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         // Preallocating on creation gives the filesystem one contiguous extent to work with
         // and fails fast if the disk is short, instead of halfway through a 4 GB download.
         using var handle = resumed
-            ? File.OpenHandle(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite,
+            ? File.OpenHandle(path, FileMode.Open, FileAccess.Write, FileShare.Read,
                 FileOptions.Asynchronous)
-            : File.OpenHandle(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite,
+            : File.OpenHandle(path, request.Overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.Read,
                 FileOptions.Asynchronous, preallocationSize: total);
+
+        request.OutputFileOpened?.Invoke(path);
 
         using var reporting = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var reporter = ReportProgressAsync(job, total, path, state, segments, progress, reporting.Token);
@@ -433,12 +450,15 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
     {
         var ceiling = Math.Clamp(request.Connections, 1, MaxConnections);
         var wanted = StartingConnections(request);
+        job.Target = wanted;
         var running = new List<Task>();
+        var budget = request.HostBudget ?? _hostBudget;
 
-        foreach (var segment in segments.Where(s => !s.IsDone))
-            running.Add(RunSegmentAsync(request, info, segment, handle, job, ct));
+        // A saved split is bookkeeping, not permission to open another connection.
+        // Queue every unfinished range and start only as many workers as currently allowed.
+        foreach (var segment in segments.Where(s => !s.IsDone)) segment.Orphaned = true;
 
-        while (running.Count < wanted && SplitLargest(segments) is { } extra)
+        while (running.Count < wanted && (TakeOrphan(segments) ?? SplitLargest(segments)) is { } extra)
             running.Add(RunSegmentAsync(request, info, extra, handle, job, ct));
 
         // Only a download that can grow has anything to measure.
@@ -468,9 +488,16 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                     continue;
 
                 var add = ramp.Evaluate(
-                    Interlocked.Read(ref job.Bytes), running.Count, ceiling,
+                    Interlocked.Read(ref job.Bytes), running.Count, Math.Min(ceiling, running.Count + budget.AvailableSlots(info.FinalUrl)),
                     Snapshot(segments).Sum(s => Math.Max(0, s.Remaining)),
                     Volatile.Read(ref job.Refused) != 0);
+
+                if (ramp.RetireTo is { } lower)
+                {
+                    job.Target = Math.Max(1, Math.Min(lower, budget.ConnectionLimit(info.FinalUrl)));
+                    Interlocked.Exchange(ref job.Retire, Math.Max(0, Volatile.Read(ref job.Active) - job.Target));
+                }
+                else job.Target = Math.Min(ceiling, running.Count + add);
 
                 for (var i = 0; i < add; i++)
                 {
@@ -504,7 +531,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             // No new work once something has failed or the user paused: the remaining
             // workers are left to finish or fail on their own, as before. A range an added
             // connection was turned away from goes first.
-            if (failure is null && !ct.IsCancellationRequested && (!turnedAway || running.Count == 0)
+            if (failure is null && !ct.IsCancellationRequested && running.Count < job.Target
+                && (!turnedAway || running.Count == 0)
                 && (TakeOrphan(segments) ?? SplitLargest(segments)) is { } stolen)
                 running.Add(RunSegmentAsync(request, info, stolen, handle, job, ct));
         }
@@ -602,8 +630,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
         var limit = retries ?? _maxRetries;
         var attempt = 0;
-        var open = Interlocked.Increment(ref job.Active);
-        RaisePeak(job, open);
+        Interlocked.Increment(ref job.Active);
 
         try
         {
@@ -615,7 +642,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
                 try
                 {
-                    await PumpSegmentAsync(request, info, segment, handle, job, ct).ConfigureAwait(false);
+                    if (!await PumpSegmentAsync(request, info, segment, handle, job, ct).ConfigureAwait(false))
+                        return; // retired cleanly; scheduler retains its remaining bytes
 
                     // A connection that closed early without delivering anything is a
                     // failure, not a success: resetting the count here would let a server
@@ -626,7 +654,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                         throw new IOException("The server closed the connection without sending any data.");
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException
-                                           && attempt < limit)
+                                           && !RetryPolicy.IsPermanent(ex) && attempt < limit)
                 {
                     // Any bytes already written stay written; the retry just re-requests
                     // from CurrentOffset, so a dropped connection costs nothing but latency.
@@ -634,7 +662,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                         attempt = 0;
                     attempt++;
                     var backoff = TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 1));
-                    await Task.Delay(backoff, ct).ConfigureAwait(false);
+                    await RetryPolicy.WaitAsync(RetryPolicy.DelayFor(ex, backoff), ct).ConfigureAwait(false);
                 }
             }
         }
@@ -653,10 +681,33 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         }
     }
 
-    private async Task PumpSegmentAsync(
+    private static bool TryRetire(Job job)
+    {
+        if (Volatile.Read(ref job.Active) <= Volatile.Read(ref job.Target)) return false;
+        int retire;
+        while ((retire = Volatile.Read(ref job.Retire)) > 0)
+            if (Interlocked.CompareExchange(ref job.Retire, retire - 1, retire) == retire) return true;
+        return false;
+    }
+
+    private sealed class ConnectionActivity : IDisposable
+    {
+        private readonly Job _job;
+        public ConnectionActivity(Job job)
+        {
+            _job = job;
+            RaisePeak(job, Interlocked.Increment(ref job.Connections));
+        }
+        public void Dispose() => Interlocked.Decrement(ref _job.Connections);
+    }
+
+    private async Task<bool> PumpSegmentAsync(
         DownloadRequest request, RemoteFileInfo info, Segment segment,
         SafeFileHandle handle, Job job, CancellationToken ct)
     {
+        var budget = request.HostBudget ?? _hostBudget;
+        using var lease = await budget.AcquireAsync(info.FinalUrl, ct).ConfigureAwait(false);
+        using var activity = new ConnectionActivity(job);
         // One timer per connection, pushed back on every byte. Firing turns into an
         // IOException, which the retry loop treats like any dropped connection.
         using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -673,6 +724,11 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             using var response = await _http
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, stall.Token)
                 .ConfigureAwait(false);
+
+            budget.Observe(response, info.FinalUrl);
+            if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+                Volatile.Write(ref job.Refused, 1);
+            RetryPolicy.EnsureSuccess(response);
 
             // A 200 here means the server decided to send the whole file down a segment
             // connection. Writing that at this segment offset would corrupt the output.
@@ -703,6 +759,12 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             {
                 while (!segment.IsDone && responseRemaining > 0)
                 {
+                    ct.ThrowIfCancellationRequested();
+                    if (TryRetire(job))
+                    {
+                        segment.Orphaned = true;
+                        return false;
+                    }
                     stall.CancelAfter(StallTimeout);
 
                     var cap = (int)Math.Min(BufferSize, Math.Min(segment.Remaining, responseRemaining));
@@ -741,13 +803,16 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         {
             throw new IOException($"No data for {StallTimeout.TotalSeconds:0} seconds; reconnecting.");
         }
+        return true;
     }
 
     private async Task<long> DownloadSingleStreamAsync(
         DownloadRequest request, RemoteFileInfo info, string path,
         IProgress<ProgressSnapshot>? progress, CancellationToken ct)
     {
-        var job = new Job { Active = 1 };
+        var job = new Job { Active = 1, Connections = 1 };
+        var budget = request.HostBudget ?? _hostBudget;
+        using var lease = await budget.AcquireAsync(info.FinalUrl, ct).ConfigureAwait(false);
 
         using var message = HttpProbe.BuildRequest(request);
         message.RequestUri = info.FinalUrl;
@@ -755,7 +820,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         using var response = await _http
             .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        budget.Observe(response, info.FinalUrl);
+        RetryPolicy.EnsureSuccess(response);
 
         using var reporting = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var reporter = ReportProgressAsync(job, info.TotalLength, path, null, null, progress, reporting.Token);
@@ -765,8 +831,9 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             await using var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
             // Unbuffered: writes already arrive in BufferSize chunks, so a FileStream buffer
             // of the same size would only copy every byte a second time.
-            await using var target = new FileStream(path, FileMode.Create, FileAccess.Write,
+            await using var target = new FileStream(path, request.Overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write,
                 FileShare.Read, bufferSize: 0, useAsync: true);
+            request.OutputFileOpened?.Invoke(path);
 
             var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -838,7 +905,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 BytesCompleted = bytes,
                 TotalBytes = total,
                 BytesPerSecond = speed,
-                ActiveConnections = Volatile.Read(ref job.Active),
+                ActiveConnections = Volatile.Read(ref job.Connections),
             });
 
             sinceSave += elapsed;

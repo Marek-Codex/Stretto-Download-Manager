@@ -58,7 +58,13 @@ public sealed class DownloadCompleteDialog : UserControl, IWindowForm, IWindowFo
             ? $"{DownloadItem.FormatBytes(size)}  ·  {item.Category}"
             : item.Category.ToString();
 
-        var info = new StackPanel { Spacing = 4, Width = 342 };
+        var info = new StackPanel { Spacing = 4 };
+        info.Children.Add(new TextBlock
+        {
+            Text = "Ready to open",
+            FontSize = 18,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        });
         info.Children.Add(new TextBlock
         {
             Text = item.Name,
@@ -73,16 +79,21 @@ public sealed class DownloadCompleteDialog : UserControl, IWindowForm, IWindowFo
             Opacity = 0.65,
             TextWrapping = TextWrapping.Wrap,
         });
-        info.Children.Add(new TextBlock
+        var location = new TextBlock
         {
             Text = item.TargetDirectory,
             FontSize = 12,
             Opacity = 0.5,
             TextTrimming = TextTrimming.CharacterEllipsis,
-        });
+        };
+        ToolTipService.SetToolTip(location, item.TargetDirectory);
+        info.Children.Add(location);
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var row = new Grid { ColumnSpacing = 12, MinWidth = 460, MaxWidth = 580 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.Children.Add(tile);
+        Grid.SetColumn(info, 1);
         row.Children.Add(info);
 
         this.Compact();

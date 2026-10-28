@@ -129,7 +129,36 @@ let healthOnline = null;
 
 async function ensureConnection(cfg) {
   const result = await connect(cfg);
-  const online = result !== null;
+  noteHealth(result !== null);
+  return result;
+}
+
+/**
+ * A config that can reach the app, with rules fresh from it, for the capture path.
+ *
+ * One round trip when already paired: a /rules answer proves the connection as well as
+ * /ping does, so asking both while the browser holds the download was a wasted call.
+ * Anything short of a good answer falls back to the full connect, pairing included.
+ */
+async function connectWithRules(cfg) {
+  if (cfg.token && cfg.port) {
+    try {
+      const rules = await callApp(cfg, '/rules', { signal: AbortSignal.timeout(RULES_TIMEOUT_MS) });
+      if (Array.isArray(rules.captureTypes)) {
+        await cacheRules(rules);
+        noteHealth(true);
+        return { ...cfg, rules };
+      }
+    } catch {
+      // Moved, restarted or unpaired: the full connect below sorts out which.
+    }
+  }
+
+  const ready = await ensureConnection(cfg);
+  return ready && { ...ready, rules: await refreshRules(ready) };
+}
+
+function noteHealth(online) {
   void showHealth(online);
 
   // Only when the answer changed. alarms.create restarts the timer, so rescheduling on
@@ -138,10 +167,9 @@ async function ensureConnection(cfg) {
   // makes an app closing now drop to the fast poll, and starting now find the app quickly.
   if (online !== healthOnline) {
     healthOnline = online;
+    if (online) offlineNoticeShown = false;
     scheduleHealth(online);
   }
-
-  return result;
 }
 
 async function connect(cfg) {
@@ -199,9 +227,7 @@ async function refreshRules(cfg) {
   try {
     const rules = await callApp(cfg, '/rules', { signal: AbortSignal.timeout(RULES_TIMEOUT_MS) });
     if (Array.isArray(rules.captureTypes)) {
-      await api.storage.local.set({ rules });
-      // The webRequest listener cannot await, so the one rule it needs is mirrored here.
-      currentMediaTypes = Array.isArray(rules.mediaTypes) ? rules.mediaTypes : [];
+      await cacheRules(rules);
       return rules;
     }
   } catch {
@@ -209,6 +235,12 @@ async function refreshRules(cfg) {
   }
 
   return cfg.rules;
+}
+
+async function cacheRules(rules) {
+  await api.storage.local.set({ rules });
+  // The webRequest listener cannot await, so the one rule it needs is mirrored here.
+  currentMediaTypes = Array.isArray(rules.mediaTypes) ? rules.mediaTypes : [];
 }
 
 /**
@@ -320,6 +352,20 @@ async function notify(message) {
 }
 
 /**
+ * Whether "Stretto is not running" has been shown since the app was last reachable.
+ * Someone who closed Stretto on purpose would otherwise get a toast for every download;
+ * once per stretch is the news, and the "!" on the icon keeps saying it after that.
+ */
+let offlineNoticeShown = false;
+
+/** The offline toast for downloads the browser keeps on its own, once per outage. */
+function notifyOffline() {
+  if (offlineNoticeShown) return;
+  offlineNoticeShown = true;
+  notify('Stretto is not running, or has not allowed this browser yet. Downloads stay in the browser for now.');
+}
+
+/**
  * Offers a download to Stretto and reports whether it took it. The app may put the New
  * Download window on screen first, so this can sit waiting for a person.
  */
@@ -330,7 +376,9 @@ async function sendToApp(cfg, payload) {
     signal: AbortSignal.timeout(600000),
   }));
 
-  return answer.action !== 'browser';
+  // A malformed or incompatible response is not an acknowledgement. Cancelling the
+  // browser's original request requires an explicit acceptance from the app.
+  return answer?.action === 'queued' || answer?.action === 'taken';
 }
 
 /**
@@ -575,7 +623,8 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
     });
     notify(accepted ? 'Sent to Stretto.' : 'Stretto did not take this link.');
   } catch (error) {
-    notify(`Stretto is not reachable (${error.message}).`);
+    console.info(`Stretto: sending failed: ${error.message}`);
+    notify('Stretto stopped answering, so this link was not sent.');
   }
 });
 

@@ -26,10 +26,11 @@ public partial class App : Application
         UnhandledException += (_, e) => Log($"WinUI exception: {e.Exception}");
     }
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         try
         {
+            await Services.StartupRegistration.InitializeAsync();
             _window = new MainWindow();
             _window.Activate();
         }

@@ -31,7 +31,8 @@ public sealed record FedMedia
     /// carries no telling extension, which direct master links often do not.</summary>
     public MediaCandidate ToCandidate()
     {
-        var kind = Kind == "stream" && Url.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase)
+        var kind = Kind == "stream" && ((Mime?.Contains("dash+xml", StringComparison.OrdinalIgnoreCase) ?? false)
+            || new Uri(Url).AbsolutePath.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase))
             ? MediaKind.Dash
             : Kind == "stream" ? MediaKind.Hls
             : MediaKind.Direct;
@@ -73,8 +74,15 @@ public sealed class MediaFeed
             var name = !string.IsNullOrWhiteSpace(report.Name) && report.Name != uri.Host ? report.Name : current.Name;
             var title = string.IsNullOrWhiteSpace(report.PageTitle) ? current.PageTitle : report.PageTitle;
 
-            if (name != current.Name || title != current.PageTitle)
-                Items[seen] = current with { Name = name, PageTitle = title };
+            Items[seen] = current with
+            {
+                Name = name, PageTitle = title,
+                Cookie = report.Cookie ?? current.Cookie,
+                Referrer = report.Referrer ?? current.Referrer,
+                UserAgent = report.UserAgent ?? current.UserAgent,
+                Headers = report.Headers ?? current.Headers,
+                Mime = report.Mime ?? current.Mime,
+            };
 
             return;
         }

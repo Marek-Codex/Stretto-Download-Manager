@@ -42,6 +42,9 @@ public sealed class NewDownloadWindow : Window
         shell.Children.Add(titleBar);
         shell.Children.Add(form);
         shell.Children.Add(footer);
+        var escape = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = Windows.System.VirtualKey.Escape };
+        escape.Invoked += (_, args) => { args.Handled = true; Close(); };
+        shell.KeyboardAccelerators.Add(escape);
         Content = shell.Compact();
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)

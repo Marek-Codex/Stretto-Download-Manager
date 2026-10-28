@@ -15,6 +15,8 @@ public sealed record HlsVariant
     public long? Bandwidth { get; init; }
 
     public string? Codecs { get; init; }
+    /// <summary>Program order in the master, before quality sorting.</summary>
+    public int ProgramIndex { get; init; }
 
     /// <summary>What to show in a list of formats.</summary>
     public string Label
@@ -69,6 +71,7 @@ public static partial class HlsPlaylist
 
             variants.Add(new HlsVariant
             {
+                ProgramIndex = variants.Count,
                 Url = resolved,
                 Height = ParseHeight(Attribute(attributes, "RESOLUTION")),
                 Bandwidth = long.TryParse(Attribute(attributes, "BANDWIDTH"), out var bandwidth) ? bandwidth : null,
@@ -88,11 +91,21 @@ public static partial class HlsPlaylist
         Uri playlist,
         string? cookie = null,
         string? referrer = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? userAgent = null,
+        IReadOnlyDictionary<string, string>? headers = null)
     {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, playlist);
+            foreach (var (name, value) in headers ?? new Dictionary<string, string>())
+                if (!name.Equals("Range", StringComparison.OrdinalIgnoreCase))
+                    request.Headers.TryAddWithoutValidation(name, value);
+            if (!string.IsNullOrEmpty(userAgent))
+            {
+                request.Headers.Remove("User-Agent");
+                request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
+            }
 
             if (!string.IsNullOrEmpty(cookie))
                 request.Headers.TryAddWithoutValidation("Cookie", cookie);
@@ -108,7 +121,7 @@ public static partial class HlsPlaylist
             var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
 
             // Cheap guard against handing a megabyte of something else to the parser.
-            if (!text.StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
+            if (!text.TrimStart('\uFEFF', ' ', '\r', '\n', '\t').StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
                 return [];
 
             return ParseMaster(text, response.RequestMessage?.RequestUri ?? playlist);

@@ -82,14 +82,14 @@ async function decide(details) {
   let cfg = await config();
   if (!cfg.enabled) return {};
 
-  const ready = await ensureConnection(cfg);
+  const ready = await connectWithRules(cfg);
   if (!ready) {
-    notify('Stretto is not running, or has not allowed this extension yet.');
+    notifyOffline();
     return {};
   }
 
   // Fresh rules for every decision, so a saved change applies to the very next download.
-  cfg = { ...ready, rules: await refreshRules(ready) };
+  cfg = ready;
 
   const filename = dispositionName(header(details, 'content-disposition'));
   const size = totalSize(details);
@@ -109,7 +109,8 @@ async function decide(details) {
 
     if (!taken) return {};
   } catch (error) {
-    notify(`Stretto is not reachable (${error.message}). The browser is handling this download.`);
+    console.info(`Stretto: sending failed: ${error.message}`);
+    notify('Stretto stopped answering, so the browser is handling this download.');
     return {};
   }
 

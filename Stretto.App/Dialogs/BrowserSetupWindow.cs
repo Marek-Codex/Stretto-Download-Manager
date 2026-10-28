@@ -12,12 +12,12 @@ using Windows.Storage;
 namespace Stretto.App.Dialogs;
 
 /// <summary>
-/// The three-step walkthrough that gets Stretto's extension into a Chromium browser.
+/// The three-step walkthrough that gets Stretto's extension into a browser.
 ///
 /// One column, one step at a time. The earlier version put a mock browser beside the steps
 /// that repeated each step's text a second time, which doubled the reading without adding
-/// anything. What replaced it does the work instead: the first step opens the extensions
-/// page itself, and the last watches for the extension to connect and says so, so the
+/// anything. The first step prepares the selected browser, and the last watches for the
+/// extension to connect and says so, so the
 /// user never has to go and check.
 ///
 /// It stays above other windows but does not pin Stretto: the browser has to be able to
@@ -26,8 +26,7 @@ namespace Stretto.App.Dialogs;
 public sealed class BrowserSetupWindow : Window
 {
     /// <summary>How the extension gets in. Chromium loads a folder in Developer mode;
-    /// Firefox builds that allow unsigned add-ons install the packed .xpi for good; regular
-    /// Firefox only accepts an unsigned add-on until it restarts.</summary>
+    /// Firefox loads the bundled unsigned add-on temporarily until the browser restarts.</summary>
     private enum Family { Chromium, Firefox, FirefoxTemporary }
 
     private sealed record Browser(string Name, string Scheme, string Exe, Family Family = Family.Chromium)
@@ -35,7 +34,7 @@ public sealed class BrowserSetupWindow : Window
         /// <summary>The page the first step opens.</summary>
         public string Page => Family switch
         {
-            Family.Firefox => "about:config",
+            Family.Firefox => "about:debugging#/runtime/this-firefox",
             Family.FirefoxTemporary => "about:debugging#/runtime/this-firefox",
             _ => $"{Scheme}://extensions",
         };
@@ -71,9 +70,9 @@ public sealed class BrowserSetupWindow : Window
     private readonly DateTimeOffset _openedAt = DateTimeOffset.UtcNow;
     private readonly int _approvedAtStart = Pairing.Approved.Count();
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly string _extensionPath = Path.Combine(AppContext.BaseDirectory, "extensions", "chromium");
-    private readonly string _firefoxPath = Path.Combine(AppContext.BaseDirectory, "extensions", "firefox");
-    private readonly string _xpiPath = Path.Combine(AppContext.BaseDirectory, "extensions", "stretto-firefox.xpi");
+    private readonly string _extensionPath = Path.Combine(BundledExtensions.Root, "chromium");
+    private readonly string _firefoxPath = Path.Combine(BundledExtensions.Root, "firefox");
+    private readonly string _xpiPath = Path.Combine(BundledExtensions.Root, "stretto-firefox.xpi");
 
     // The text of the first two steps follows the browser family, so it lives in fields.
     private readonly TextBlock _openHeading = Heading();
@@ -87,12 +86,15 @@ public sealed class BrowserSetupWindow : Window
     private readonly TextBlock _fallbackHint = FormKit.Hint("");
     private readonly TextBox _pathBox = ReadOnly();
 
-    private readonly ComboBox _browser = new() { MinWidth = 200 };
+    private readonly ComboBox _browser = new() { MinWidth = 200, MaxDropDownHeight = 280, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private Border _dragTile = null!;
     private readonly Border[] _pills = new Border[3];
     private readonly FrameworkElement[] _steps = new FrameworkElement[3];
+    private readonly ScrollViewer[] _stepViews = new ScrollViewer[3];
     private readonly TextBox _address = ReadOnly();
     private readonly TextBlock _openResult = FormKit.Hint("");
     private readonly TextBlock _pasteHint = FormKit.Hint("");
+    private readonly TextBlock _readiness = FormKit.Hint("");
     private readonly FontIcon _connectIcon = new() { FontSize = 30 };
     private readonly TextBlock _connectTitle = new() { FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextAlignment = TextAlignment.Center };
     private readonly TextBlock _connectBody = FormKit.Hint("");
@@ -101,6 +103,7 @@ public sealed class BrowserSetupWindow : Window
     private readonly Button _next = new() { Content = "Next", MinWidth = 80 };
     private int _step;
     private bool _connected;
+    private bool _filesReady;
 
     public BrowserSetupWindow(AppWindow owner, Func<DateTimeOffset?> lastContact)
     {
@@ -131,9 +134,17 @@ public sealed class BrowserSetupWindow : Window
         ApplyBrowser();
         _steps[2] = BuildConnectStep();
 
-        var stepHost = new Grid { Padding = new Thickness(24, 4, 24, 12) };
-        foreach (var step in _steps)
-            stepHost.Children.Add(step);
+        var stepHost = new Grid { Padding = new Thickness(16, 4, 16, 12) };
+        for (var i = 0; i < _steps.Length; i++)
+        {
+            _stepViews[i] = new ScrollViewer
+            {
+                Content = _steps[i],
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            };
+            stepHost.Children.Add(_stepViews[i]);
+        }
 
         var close = new Button { Content = "Close", MinWidth = 80 };
         close.Click += (_, _) => Close();
@@ -182,8 +193,8 @@ public sealed class BrowserSetupWindow : Window
 
     private Grid BuildStepBar()
     {
-        string[] titles = ["Open extensions", "Load Stretto", "Connect"];
-        var bar = new Grid { Padding = new Thickness(24, 6, 24, 14), ColumnSpacing = 8 };
+        string[] titles = ["Prepare browser", "Load Stretto", "Connect"];
+        var bar = new Grid { Padding = new Thickness(16, 8, 16, 14), ColumnSpacing = 8 };
 
         for (var i = 0; i < titles.Length; i++)
         {
@@ -203,13 +214,18 @@ public sealed class BrowserSetupWindow : Window
     private StackPanel BuildOpenStep()
     {
         _openButton.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
-        _openButton.Click += (_, _) => OpenExtensionsPage();
-        var copy = FormKit.PushButton("Copy", (_, _) => Copy(_address.Text));
+        _openButton.Click += (_, _) => OpenBrowser();
+        var copy = FormKit.PushButton("Copy address", (_, _) =>
+        {
+            Copy(_address.Text);
+            Say("Copied. Paste into the browser's address bar and press Enter.");
+        });
 
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(_openHeading);
         panel.Children.Add(_openBody);
-        panel.Children.Add(FormKit.Horizontal(_browser, _openButton));
+        panel.Children.Add(FormKit.WithButton(_browser, _openButton));
+        panel.Children.Add(_readiness);
         panel.Children.Add(_openResult);
         Say("");
         panel.Children.Add(_pasteHint);
@@ -221,7 +237,7 @@ public sealed class BrowserSetupWindow : Window
     private StackPanel BuildLoadStep()
     {
         var accent = FormKit.Res("StrettoAccentBrush");
-        var tile = new Border
+        var tile = _dragTile = new Border
         {
             Height = 104,
             BorderBrush = FormKit.Res("StrettoAccentStrokeBrush"),
@@ -252,9 +268,10 @@ public sealed class BrowserSetupWindow : Window
         panel.Children.Add(_loadBody);
         panel.Children.Add(tile);
         panel.Children.Add(_fallbackHint);
-        panel.Children.Add(FormKit.WithButton(_pathBox, FormKit.Horizontal(
-            FormKit.PushButton("Copy", (_, _) => Copy(_pathBox.Text)),
-            FormKit.PushButton("Show in folder", (_, _) => Reveal(_pathBox.Text)))));
+        panel.Children.Add(_pathBox);
+        panel.Children.Add(FormKit.Horizontal(
+            FormKit.PushButton("Copy folder path", (_, _) => Copy(_pathBox.Text)),
+            FormKit.PushButton("Show in folder", (_, _) => Reveal(_pathBox.Text))));
         return panel;
     }
 
@@ -324,12 +341,13 @@ public sealed class BrowserSetupWindow : Window
 
         for (var i = 0; i < _steps.Length; i++)
         {
-            _steps[i].Visibility = i == _step ? Visibility.Visible : Visibility.Collapsed;
+            _stepViews[i].Visibility = i == _step ? Visibility.Visible : Visibility.Collapsed;
             _pills[i].Background = FormKit.Res(i <= _step ? "StrettoAccentBrush" : "StrettoTrackBrush");
         }
 
         _back.IsEnabled = _step > 0;
-        _next.Content = _step == 2 ? "Finish" : "Next";
+        _next.Content = _step == 2 ? (_connected ? "Finish" : "Close setup") : "Next";
+        _next.IsEnabled = _step != 0 || _filesReady;
         _next.Style = _step < 2 || _connected ? (Style)Application.Current.Resources["AccentButtonStyle"] : null;
 
         // Only the last step watches for the connection, and only while it is on screen.
@@ -346,17 +364,26 @@ public sealed class BrowserSetupWindow : Window
     {
         var browser = Chosen;
         _address.Text = browser.Page;
+        _dragTile.Visibility = Visibility.Visible;
+        _dragTile.CanDrag = true;
+        _openButton.Content = "Open browser";
+        _openButton.IsEnabled = Installed(browser) is not null;
+        _filesReady = browser.IsFirefox
+            ? File.Exists(_xpiPath) && File.Exists(Path.Combine(_firefoxPath, "manifest.json"))
+            : File.Exists(Path.Combine(_extensionPath, "manifest.json"));
+        _readiness.Text = !_filesReady
+            ? "The bundled extension files are missing. Reinstall Stretto before continuing."
+            : Installed(browser) is not null ? "Browser found · Stretto extension ready"
+            : "Stretto extension ready · Open your browser manually, or choose another browser.";
+        _next.IsEnabled = _step != 0 || _filesReady;
 
         switch (browser.Family)
         {
             case Family.Chromium:
-                _openHeading.Text = "Open your browser's extensions page";
-                _openBody.Text = "Stretto's extension is side-loaded rather than installed from a store, so it goes in through the extensions page.";
-                // Chromium browsers won't open their own extensions page when another program asks, so the button
-                // copies the address rather than launching a browser window that would only open blank.
-                _openButton.Content = "Copy address";
-                _pasteHint.Text = $"Paste this into {browser.Name}'s address bar:";
-                _openCallout.Text = "Paste the address into the address bar and press Enter, then turn on Developer mode, the switch in the top corner of that page.";
+                _openHeading.Text = "Prepare your browser";
+                _openBody.Text = "Choose the browser where you want Stretto to catch downloads. Open it, then use the address below to reach its extensions page.";
+                _pasteHint.Text = "Extensions page — paste into the browser's address bar:";
+                _openCallout.Text = "Turn on Developer mode on the extensions page. Leave that page open, then choose Next to load Stretto.";
                 _loadHeading.Text = "Load Stretto's extension";
                 _loadBody.Text = "Drop the tile below anywhere on the extensions page.";
                 _tileTitle.Text = "Drag this onto the extensions page";
@@ -366,33 +393,22 @@ public sealed class BrowserSetupWindow : Window
                 break;
 
             case Family.Firefox:
-                _openHeading.Text = "Let it accept Stretto's add-on";
-                _openBody.Text = "Stretto's add-on is not signed by Mozilla, and this browser can be told to allow that, once.";
-                _openButton.Content = "Open about:config";
-                _pasteHint.Text = "Or paste this into the address bar:";
-                _openCallout.Text = "Accept the warning, search for xpinstall.signatures.required and set it to false. LibreWolf and some others already have it off.";
-                _loadHeading.Text = "Install Stretto's add-on";
-                _loadBody.Text = "Drop the tile below onto any window of the browser, then choose Add.";
-                _tileTitle.Text = "Drag this onto the browser";
-                _tileHint.Text = "It is the packed add-on, stretto-firefox.xpi";
-                _fallbackHint.Text = "Or open about:addons, click the gear, choose Install Add-on From File, and pick this file:";
-                _pathBox.Text = _xpiPath;
-                break;
-
             case Family.FirefoxTemporary:
                 _openHeading.Text = "Open Firefox's debugging page";
-                _openBody.Text = "Regular Firefox only runs add-ons Mozilla has signed. It will still load Stretto's until it restarts, which is fine for trying it; for good, use Developer Edition, ESR or LibreWolf.";
-                _openButton.Content = "Open about:debugging";
-                _pasteHint.Text = "Or paste this into the address bar:";
-                _openCallout.Text = "It opens on This Firefox. If not, choose This Firefox on the left.";
+                _openBody.Text = "The bundled add-on is unsigned. Load it temporarily to try Stretto; it must be loaded again after the browser restarts. Regular Firefox requires Mozilla signing for permanent installation.";
+                _pasteHint.Text = "Temporary add-on page — paste into the browser's address bar:";
+                _openCallout.Text = "Choose This Firefox if needed. This is a temporary installation; your browser’s signature checks stay enabled.";
                 _loadHeading.Text = "Load Stretto's add-on for this session";
-                _loadBody.Text = "Click Load Temporary Add-on and pick the manifest.json file in this folder. Firefox forgets it on restart.";
-                _tileTitle.Text = "Or drag the packed add-on onto Firefox";
-                _tileHint.Text = "Firefox refuses it unless it allows unsigned add-ons";
+                _loadBody.Text = browser.Family == Family.Firefox
+                    ? "The XPI below is unsigned. Installation depends on whether your browser is configured to accept unsigned add-ons. If it rejects the file, use about:debugging → This Firefox → Load Temporary Add-on and select manifest.json in the folder below."
+                    : "For regular Firefox, choose Load Temporary Add-on and select manifest.json in the folder below. This lasts until restart. The XPI drag option needs a browser configured to accept unsigned add-ons.";
+                _tileTitle.Text = "Drag the XPI onto your browser";
+                _tileHint.Text = "Unsigned: regular Firefox will reject permanent installation";
                 _fallbackHint.Text = "The folder holding manifest.json:";
                 _pathBox.Text = _firefoxPath;
                 break;
         }
+        ToolTipService.SetToolTip(_pathBox, _pathBox.Text);
     }
 
     private static TextBlock Heading() => new() { FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
@@ -413,52 +429,28 @@ public sealed class BrowserSetupWindow : Window
     }
 
     /// <summary>
-    /// Brings the browser up and puts its extensions page address on the clipboard. It asks
-    /// for the page too, but Chromium browsers decline that from outside, so pasting the
-    /// address is the step the user is told to take.
+    /// Opens the selected browser. Copying its internal-page address is a separate action:
+    /// those pages cannot reliably be opened by another application.
     /// </summary>
-    private void OpenExtensionsPage()
+    private void OpenBrowser()
     {
         var browser = Chosen;
 
-        // Chromium: launching the browser only produced a blank window (it won't open its own extensions page for
-        // another program), so the button just copies, and says plainly what to do next.
-        if (!browser.IsFirefox)
-        {
-            Copy(_address.Text);
-            Say(browser.Exe.Length == 0
-                ? "Copied. Paste it into your browser's address bar. Most Chromium browsers use chrome://extensions; if yours differs, open its extensions page from its menu."
-                : $"Copied — paste it into {browser.Name}'s address bar and press Enter.");
-            return;
-        }
-
         if (Installed(browser) is not { } exe)
         {
-            Copy(_address.Text);
-            if (browser.Exe.Length == 0)
-            {
-                Say("Address copied. Paste it into your browser. Most Chromium browsers use chrome://extensions; if yours differs, open its extensions page from its menu.");
-                return;
-            }
-
-            Say($"{browser.Name} was not found, so the address was copied instead. Paste it into the browser.");
+            Say("Open your browser manually, then copy the address below.");
             return;
         }
-
-        // Firefox pages (about:config, about:debugging): the address goes on the clipboard too, in case the browser
-        // shows a new tab instead of the page.
-        Copy(_address.Text);
 
         try
         {
-            Process.Start(new ProcessStartInfo(exe, browser.Page) { UseShellExecute = false });
-            Say($"Opened {browser.Name}. If it shows a new tab instead, paste the copied address into the address bar.");
+            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            Say($"Opened {browser.Name}. Use Copy address below to open its setup page.");
         }
         catch (Exception exception)
         {
             App.Log($"Could not open {browser.Name}: {exception.Message}");
-            Copy(_address.Text);
-            Say("The browser would not open, so the address was copied instead.");
+            Say("The browser could not be opened. Open it manually, then copy the address below.");
         }
     }
 
@@ -514,9 +506,9 @@ public sealed class BrowserSetupWindow : Window
         _connectIcon.Glyph = "";
         _connectIcon.Foreground = FormKit.Res("StrettoDoneBrush");
 
-        _connectTitle.Text = _connected ? "Connected" : "Waiting for the extension…";
+        _connectTitle.Text = _connected ? "An extension is connected" : "Waiting for the extension…";
         _connectBody.Text = _connected
-            ? "Downloads you start in the browser now come to Stretto. You can close this."
+            ? "Stretto has heard from a browser extension. Open the extension in your chosen browser and check that it says Connected. Capture rules still decide which downloads Stretto takes."
             : "This updates by itself once the extension is loaded. If Stretto asks whether to allow an extension, choose Allow. Turning the extension off and on again makes it try straight away.";
     }
 

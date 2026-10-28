@@ -25,6 +25,7 @@ public sealed record MediaCandidate
 
     /// <summary>The yt-dlp format to ask for, when one was picked. Null means its choice.</summary>
     public string? FormatId { get; init; }
+    public int? HlsProgramIndex { get; init; }
 
     /// <summary>The title of the page it was seen on. The file name is chosen from it at
     /// download time, so a title that arrives late is still used.</summary>
@@ -64,7 +65,7 @@ public static partial class MediaExtractor
     private static partial Regex Anchor();
 
     /// <summary>Catches playlist and media URLs sitting inside inline script or JSON blobs.</summary>
-    [GeneratedRegex(@"[""'](https?://[^""'\s\\]+?\.(?:m3u8|mpd|mp4|webm|m4a)(?:\?[^""'\s\\]*)?)[""']", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"[""']([^""'\s\\]+?\.(?:m3u8|m3u|mpd|mp4|webm|m4a)(?:\?[^""'\s\\]*)?)[""']", RegexOptions.IgnoreCase)]
     private static partial Regex UrlInScript();
 
     public static async Task<IReadOnlyList<MediaCandidate>> ExtractAsync(
@@ -73,15 +74,20 @@ public static partial class MediaExtractor
         // The address may already point straight at the media, in which case there is no
         // page to scrape.
         if (ClassifyByExtension(pageUrl) is { } direct)
-            return [new MediaCandidate { Url = pageUrl, Label = NameFor(pageUrl), Kind = direct, Source = "address" }];
+            return [new MediaCandidate { Url = pageUrl, Label = NameFor(pageUrl), Kind = direct, Source = "address", Cookie = cookie }];
 
-        var html = await FetchAsync(http, pageUrl, cookie, ct).ConfigureAwait(false);
-        return Extract(html, pageUrl);
+        var (html, finalUrl, mime) = await FetchAsync(http, pageUrl, cookie, ct).ConfigureAwait(false);
+        var streamKind = mime?.Contains("mpegurl", StringComparison.OrdinalIgnoreCase) == true ? MediaKind.Hls
+            : mime?.Contains("dash+xml", StringComparison.OrdinalIgnoreCase) == true ? MediaKind.Dash : (MediaKind?)null;
+        if (streamKind is { } kind)
+            return [new MediaCandidate { Url = finalUrl, Label = NameFor(finalUrl), Kind = kind, Source = "content type", Cookie = cookie }];
+        return [.. Extract(html, finalUrl).Select(c => c with { Cookie = cookie, Referrer = finalUrl.ToString() })];
     }
 
     /// <summary>Split out from the fetch so it can be tested without a network.</summary>
     public static IReadOnlyList<MediaCandidate> Extract(string html, Uri pageUrl)
     {
+        html = System.Net.WebUtility.HtmlDecode(html).Replace(@"\/", "/");
         var found = new List<MediaCandidate>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -129,7 +135,7 @@ public static partial class MediaExtractor
         ];
     }
 
-    private static async Task<string> FetchAsync(HttpClient http, Uri pageUrl, string? cookie, CancellationToken ct)
+    private static async Task<(string Text, Uri Url, string? Mime)> FetchAsync(HttpClient http, Uri pageUrl, string? cookie, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, pageUrl);
 
@@ -144,7 +150,8 @@ public static partial class MediaExtractor
         using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        return (await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false),
+            response.RequestMessage?.RequestUri ?? pageUrl, response.Content.Headers.ContentType?.MediaType);
     }
 
     private static bool TryResolve(Uri pageUrl, string raw, out Uri url)
@@ -171,7 +178,8 @@ public static partial class MediaExtractor
     {
         var path = url.AbsolutePath;
 
-        if (path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)) return MediaKind.Hls;
+        if (path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase)) return MediaKind.Hls;
         if (path.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase)) return MediaKind.Dash;
 
         return DirectExtensions.Any(e => path.EndsWith(e, StringComparison.OrdinalIgnoreCase))

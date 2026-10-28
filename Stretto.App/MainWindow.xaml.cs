@@ -30,6 +30,11 @@ public sealed partial class MainWindow : Window
     private HandoffListener? _handoff;
     private int _ticksSinceSave;
     private bool _uiReady;
+    private bool _listDirty = true;
+    private bool _refreshQueued;
+    private bool _savingDownloads;
+    private DateTime _lastListRefresh = DateTime.Now;
+    private readonly HashSet<DownloadItem> _watchedItems = [];
 
     private BrowserSetupWindow? _setup;
 
@@ -145,7 +150,16 @@ public sealed partial class MainWindow : Window
             // re-syncing it twice a second. The status bar still runs: keep-awake and the
             // finish actions hang off its count. Showing the window syncs on the next tick.
             if (AppWindow.IsVisible)
-                Refresh();
+            {
+                if (_listDirty || DateTime.Now - _lastListRefresh >= TimeSpan.FromMinutes(1))
+                    Refresh();
+                else
+                {
+                    foreach (var group in _groups.Where(g => g.Key == "Downloading"))
+                        group.Aside = $"{DownloadItem.FormatBytes((long)group.Sum(i => i.BytesPerSecond))}/s";
+                    UpdateDetails();
+                }
+            }
 
             UpdateLiveSummary();
             UpdateTrayTooltip();
@@ -157,7 +171,7 @@ public sealed partial class MainWindow : Window
             if (++_ticksSinceSave >= 20)
             {
                 _ticksSinceSave = 0;
-                _downloads.Save();
+                _ = SaveDownloadsPeriodicallyAsync();
                 _downloads.TickSchedules();
                 _ = CheckClipboardAsync();
             }
@@ -372,7 +386,54 @@ public sealed partial class MainWindow : Window
             work.Y + Math.Max(0, (work.Height - size.Height) / 2)));
     }
 
-    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
+    private async Task SaveDownloadsPeriodicallyAsync()
+    {
+        if (_savingDownloads) return;
+        _savingDownloads = true;
+        try { await _downloads.SaveAsync(); }
+        catch (Exception exception) { App.Log($"Could not save downloads: {exception.Message}"); }
+        finally { _savingDownloads = false; }
+    }
+
+    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var item in _watchedItems) item.PropertyChanged -= DownloadItemChanged;
+            _watchedItems.Clear();
+            foreach (var item in _downloads.Items)
+                if (_watchedItems.Add(item)) item.PropertyChanged += DownloadItemChanged;
+        }
+        else
+        {
+            if (e.OldItems is not null)
+                foreach (DownloadItem item in e.OldItems)
+                    if (_watchedItems.Remove(item)) item.PropertyChanged -= DownloadItemChanged;
+            if (e.NewItems is not null)
+                foreach (DownloadItem item in e.NewItems)
+                    if (_watchedItems.Add(item)) item.PropertyChanged += DownloadItemChanged;
+        }
+        QueueListRefresh();
+    }
+
+    private void DownloadItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DownloadItem.Status) or nameof(DownloadItem.Name)
+            or nameof(DownloadItem.TotalBytes) or nameof(DownloadItem.CompletedAt))
+            QueueListRefresh();
+    }
+
+    private void QueueListRefresh()
+    {
+        _listDirty = true;
+        if (!_uiReady || _refreshQueued || !AppWindow.IsVisible) return;
+        _refreshQueued = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+        {
+            _refreshQueued = false;
+            if (_listDirty && AppWindow.IsVisible) Refresh();
+        })) _refreshQueued = false;
+    }
 
     // ═══════════════════════════════════════
     // ═══ What is shown
@@ -481,6 +542,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void Refresh()
     {
+        _listDirty = false;
+        _lastListRefresh = DateTime.Now;
         var desired = _view == "Queues" ? [] : Grouped(Filtered().ToList());
         var selected = Selection();
 
@@ -1313,12 +1376,12 @@ public sealed partial class MainWindow : Window
 
         // One static size for every section: the window never reshapes itself while
         // hunting through settings. Long sections scroll inside their own page.
-        var result = await ShowInWindowAsync(dialog, "Settings", 820, 560);
+        var result = await ShowInWindowAsync(dialog, "Settings", 820, 620);
         if (result != ContentDialogResult.Primary && !dialog.RequestedSetup)
             return;
 
         if (result == ContentDialogResult.Primary)
-            dialog.Apply();
+            await dialog.ApplyAsync();
 
         // Timeout and retry count are baked into the HTTP stack, so they only take effect
         // once it is rebuilt. This also re-applies the speed limit and pumps the queue in
@@ -1415,7 +1478,9 @@ public sealed partial class MainWindow : Window
         _settings.ShowTrayIcon = true;
         _settings.CloseToTray = true;
         _settings.Save();
-        StartupRegistration.Apply(true);
+        await StartupRegistration.ApplyAsync(true);
+        _settings.StartWithWindows = StartupRegistration.IsEnabled;
+        _settings.Save();
         StartTray();
     }
 

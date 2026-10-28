@@ -83,9 +83,10 @@ public sealed class MediaGrabberWindow : Window
         close.Click += (_, _) => Close();
 
         // The shared footer, like every other window: the action first, the way out last,
-        // and the "keep above" switch at the far end where Complete's checkbox sits.
+        // and the "keep above" switch at the far end where Complete's checkbox sits. Clear
+        // list goes with it: beside Download it was one slip away from emptying the list.
         _download.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
-        var footer = WindowAppearance.Footer([_download, clear, close], [onTop]);
+        var footer = WindowAppearance.Footer([_download, close], [onTop, clear]);
 
         _empty.HorizontalAlignment = HorizontalAlignment.Center;
         _empty.TextAlignment = TextAlignment.Center;
@@ -96,7 +97,7 @@ public sealed class MediaGrabberWindow : Window
         listArea.Children.Add(_list);
         listArea.Children.Add(_empty);
 
-        var body = new Grid { Padding = new Thickness(16, 2, 16, 12), RowSpacing = 6 };
+        var body = new Grid { Padding = new Thickness(16, 8, 16, 12), RowSpacing = 6 };
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
@@ -172,6 +173,9 @@ public sealed class MediaGrabberWindow : Window
     /// <summary>Adds what is new, keeping the rows already there and their chosen quality.</summary>
     private void Sync()
     {
+        foreach (var row in _rows)
+            if (_feed.Items.FirstOrDefault(i => i.Url == row.Address) is { } refreshed)
+                row.UpdateCandidate(refreshed.ToCandidate());
         var known = _rows.Select(r => r.Address).ToHashSet();
 
         foreach (var item in _feed.Items.Where(i => !known.Contains(i.Url)))

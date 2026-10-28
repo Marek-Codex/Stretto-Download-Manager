@@ -7,9 +7,9 @@ public sealed partial class DownloadService
 {
     private readonly AppSettings _settings;
     private readonly DownloadStore _store = new();
-    private readonly StreamDownloader _streams = new(ToolBox.Resolve(Tool.Ffmpeg));
     private readonly FtpDownloader _ftp = new();
     private readonly BandwidthLimiter _bandwidthLimiter = new();
+    private readonly HostRequestBudget _hostBudget;
 
     private readonly SynchronizationContext? _context;
     private DownloadNetwork _network;
@@ -26,6 +26,7 @@ public sealed partial class DownloadService
     public DownloadService(AppSettings settings, SynchronizationContext? context = null)
     {
         _settings = settings;
+        _hostBudget = new HostRequestBudget(uri => _settings.ConnectionsFor(uri.AbsoluteUri, _settings.DefaultConnections));
         _context = context ?? SynchronizationContext.Current;
         _network = CreateNetwork(settings);
         _bandwidthLimiter.SetLimit(settings.SpeedLimitBytesPerSecond);
@@ -46,6 +47,7 @@ public sealed partial class DownloadService
     /// </summary>
     public void ApplySettings()
     {
+        _hostBudget.RefreshLimits();
         _network = CreateNetwork(_settings);
         _bandwidthLimiter.SetLimit(_settings.SpeedLimitBytesPerSecond);
         Pump();
@@ -140,6 +142,7 @@ public sealed partial class DownloadService
             IsStream = options.IsStream,
             IsSiteVideo = options.IsSiteVideo,
             FormatId = options.FormatId,
+            HlsProgramIndex = options.HlsProgramIndex,
             Referrer = options.Referrer,
             UserAgent = options.UserAgent,
             Headers = options.Headers,
@@ -220,6 +223,11 @@ public sealed partial class DownloadService
         PreferredFileName = entry.PreferredFileName,
         SortByType = entry.SortByType,
         IsStream = entry.IsStream,
+        IsSiteVideo = entry.IsSiteVideo,
+        FormatId = entry.FormatId,
+        HlsProgramIndex = entry.HlsProgramIndex,
+        Mime = entry.Mime,
+        NamedFromTitle = entry.NamedFromTitle,
         Connections = entry.Connections,
         ProxyModeOverride = entry.ProxyModeOverride,
         ProxyProtocolOverride = entry.ProxyProtocolOverride,
@@ -242,6 +250,7 @@ public sealed partial class DownloadService
     public void Export(string path) => DownloadStore.ExportTo(path, Items);
 
     public void Save() => _store.Save(Items);
+    public Task SaveAsync() => _store.SaveAsync(Items);
 
     /// <summary>Gaps between automatic retries: long enough for a dropped connection or a
     /// busy server to recover, short enough that nobody is left waiting.</summary>
@@ -285,12 +294,12 @@ public sealed partial class DownloadService
                 || item.AutoRetries >= RetryDelays.Length)
                 return;
 
-            var delay = RetryDelays[item.AutoRetries];
+            var delay = RetryPolicy.DelayFor(exception, RetryDelays[item.AutoRetries]);
             item.AutoRetries++;
             var wait = delay.TotalMinutes >= 1 ? $"{delay.TotalMinutes:0} min" : $"{delay.TotalSeconds:0} s";
             item.Error = $"{exception.Message} Retrying in {wait} ({item.AutoRetries} of {RetryDelays.Length}).";
 
-            await Task.Delay(delay).ConfigureAwait(true);
+            await RetryPolicy.WaitAsync(delay, CancellationToken.None).ConfigureAwait(true);
 
             // Only if nothing else happened meanwhile: removed, restarted or resumed by hand.
             if (item.Status == DownloadStatus.Failed && Items.Contains(item))
@@ -427,6 +436,12 @@ public sealed partial class DownloadService
             // which cannot be known until the real filename is in hand.
             var probe = BuildRequest(item, item.TargetDirectory);
             var info = await HttpProbe.ProbeAsync(network.Http, probe, ct).ConfigureAwait(true);
+            item.Mime = info.ContentType ?? item.Mime;
+            if (LooksLikePlaylist(item))
+            {
+                await RunStreamAsync(item, progress, ct).ConfigureAwait(true);
+                return;
+            }
             GuardAgainstSignInPage(item, info);
 
             item.Name = item.PreferredFileName ?? info.SuggestedFileName;
@@ -474,6 +489,8 @@ public sealed partial class DownloadService
         }
         finally
         {
+            if (item.FilePath is { } actualPath)
+                item.Name = Path.GetFileName(actualPath);
             if (owned)
                 network.Http.Dispose();
 
@@ -521,12 +538,14 @@ public sealed partial class DownloadService
         {
             Url = new Uri(item.Url),
             TargetDirectory = directory,
-            FileName = item.PreferredFileName,
+            FileName = item.FilePath is { } ownedPath ? Path.GetFileName(ownedPath) : item.PreferredFileName,
+            OutputFileOpened = path => item.FilePath = path,
             // Capped here rather than when the download is added, so the limit also applies
             // to everything already in the list and to anything a refresh points elsewhere.
             Connections = _settings.ConnectionsFor(item.Url, item.Connections),
             Adaptive = _settings.AdaptiveConnections,
             BandwidthLimiter = _bandwidthLimiter,
+            HostBudget = _hostBudget,
             Headers = headers,
             Cookie = item.Cookie,
             Overwrite = _settings.OverwriteExisting,
@@ -587,18 +606,25 @@ public sealed partial class DownloadService
         Items.Remove(item);
 
         if (deleteFiles)
-            DeleteFilesFor(item);
+            _ = DeleteAfterStopAsync(item);
 
         Pump();
     }
 
-    /// <summary>Removes the downloaded file and its resume sidecar, if they are there.</summary>
+    private static async Task DeleteAfterStopAsync(DownloadItem item)
+    {
+        while (item.IsRunning)
+            await Task.Delay(50).ConfigureAwait(true);
+        DeleteFilesFor(item);
+    }
+
+    /// <summary>Only an engine-confirmed path is eligible for deletion, never a guessed name.</summary>
     private static void DeleteFilesFor(DownloadItem item)
     {
-        if (item.ResolvedPath is not { } path)
+        if (item.FilePath is not { } path)
             return;
 
-        foreach (var candidate in new[] { path, DownloadState.SidecarPathFor(path) })
+        foreach (var candidate in new[] { path, DownloadState.SidecarPathFor(path), path + ".stretto.tmp", path + ".stretto.ftp", path + ".stretto.ftp.tmp" })
         {
             try
             {

@@ -55,6 +55,7 @@ public sealed partial class DownloadService
             Url = new Uri(item.Url),
             TargetDirectory = item.TargetDirectory,
             FileName = item.PreferredFileName,
+            OutputFileOpened = path => item.FilePath = path,
             BandwidthLimiter = _bandwidthLimiter,
             // FTP carries no cookies, so this field ferries the login instead.
             Cookie = login is null ? null : $"{login.Username}:{login.Password}",
@@ -84,6 +85,7 @@ public sealed partial class DownloadService
 
         return Uri.TryCreate(item.Url, UriKind.Absolute, out var url)
             && (url.AbsolutePath.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+                || url.AbsolutePath.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase)
                 || url.AbsolutePath.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -102,7 +104,7 @@ public sealed partial class DownloadService
         if (string.IsNullOrWhiteSpace(name))
             name = Path.GetFileName(url.AbsolutePath) is { Length: > 0 } last ? last : url.Host;
 
-        var result = await _streams.DownloadAsync(
+        var result = await new StreamDownloader(ToolBox.Resolve(Tool.Ffmpeg)).DownloadAsync(
             url,
             item.TargetDirectory,
             name,
@@ -113,7 +115,10 @@ public sealed partial class DownloadService
             ct,
             item.Headers,
             overwrite: _settings.OverwriteExisting,
-            tagClashes: _settings.TagClashingNames && item.NamedFromTitle).ConfigureAwait(true);
+            tagClashes: _settings.TagClashingNames && item.NamedFromTitle,
+            outputFileOpened: path => item.FilePath = path,
+            hlsProgramIndex: item.HlsProgramIndex,
+            isDash: item.Mime?.Contains("dash+xml", StringComparison.OrdinalIgnoreCase) == true).ConfigureAwait(true);
 
         AppLog.Write($"Stream finished: {result.BytesWritten / 1024} KB in {result.Elapsed.TotalSeconds:F0} s");
 

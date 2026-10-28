@@ -37,25 +37,33 @@ async function call(label, { p = '/ping', method = 'GET', origin, tok, body }) {
 }
 
 (async () => {
-  console.log(`token ${token.slice(0, 8)}…  port ${PORT}\n`);
+  console.log(`Checking local handoff on port ${PORT}\n`);
+  const check = async (label, request, expected) => {
+    const actual = await call(label, request);
+    if (actual !== expected) {
+      console.error(`FAIL ${label}: expected HTTP ${expected}, got ${actual}`);
+      process.exitCode = 1;
+    }
+  };
 
   console.log('Should be refused:');
-  await call('no origin at all (a curl / script)', { tok: token });
-  await call('a web page origin', { origin: 'https://evil.example.com', tok: token });
-  await call('extension origin, wrong token', { origin: EXT, tok: 'x'.repeat(32) });
-  await call('extension origin, no token', { origin: EXT });
+  await check('a web page origin', { origin: 'https://evil.example.com', tok: token }, 403);
+  await check('extension origin, wrong token', { origin: EXT, tok: 'x'.repeat(32) }, 401);
+  await check('extension origin, no token', { origin: EXT }, 401);
 
   console.log('\nShould be accepted:');
-  await call('preflight', { method: 'OPTIONS', origin: EXT });
-  await call('ping with the real token', { origin: EXT, tok: token });
-  await call('unknown route (404, not 500)', { p: '/nope', origin: EXT, tok: token });
-  await call('malformed json', {
+  await check('preflight', { method: 'OPTIONS', origin: EXT }, 200);
+  await check('ping with the real token', { origin: EXT, tok: token }, 200);
+  await check('originless request with the real token', { tok: token }, 200);
+  console.log('\nInput validation:');
+  await check('unknown route (404, not 500)', { p: '/nope', origin: EXT, tok: token }, 404);
+  await check('malformed json', {
     p: '/add', method: 'POST', origin: EXT, tok: token, body: '{not json',
-  });
-  await call('non-http url', {
+  }, 400);
+  await check('non-http url', {
     p: '/add', method: 'POST', origin: EXT, tok: token,
-    body: JSON.stringify({ url: 'file:///C:/Windows/System32/config/SAM' }),
-  });
+    body: JSON.stringify({ url: 'file:///unsupported-test-download.bin' }),
+  }, 400);
 
   if (target) {
     console.log('\nHanding over a real download:');

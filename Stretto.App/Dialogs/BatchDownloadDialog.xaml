@@ -10,7 +10,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <!-- WinUI's own compact density, scoped to this window rather than set
                      app wide: secondary windows are passed through, not sat in. -->
-                <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
+                <ResourceDictionary Source="ms-appx:///Assets/Density.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
         </ResourceDictionary>
@@ -19,7 +19,7 @@
     <!-- A segmented bar rather than a Pivot: Pivot headers are sized for a page, and in a
          window this small they shouted over the form they were meant to label. -->
     <StackPanel Width="500" Spacing="12">
-        <SelectorBar x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged" Margin="-4,0,0,0">
+        <SelectorBar x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged" Margin="-12,0,0,0">
             <SelectorBarItem x:Name="PatternTabItem" Text="Pattern" />
             <SelectorBarItem x:Name="LinksTabItem" Text="Links" />
         </SelectorBar>
@@ -34,8 +34,8 @@
             <Grid ColumnSpacing="10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="90" />
-                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="92" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 

@@ -55,6 +55,8 @@
       border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px;
     }
     .icon-button:hover { background: var(--surface-hover); color: var(--text); }
+    /* Pulled out so the glyph, not its hover box, ends on the 14px edge with the switches. */
+    header .icon-button { margin-right: -7px; }
 
     /* A switch rather than a checkbox: it is the one on/off the popup offers. */
     .switch { position: relative; width: 36px; height: 20px; flex: none; }
@@ -69,6 +71,8 @@
     }
     .switch input:checked + span { background: var(--accent); border-color: var(--accent); }
     .switch input:checked + span::after { transform: translateX(16px); background: #07131f; }
+
+    .switch-label { margin-right: -2px; color: var(--muted); font-size: 12px; cursor: pointer; }
 
     /* ═══ This site ═══ */
     .site { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; }
@@ -86,9 +90,11 @@
     }
     .link-button:hover { color: var(--text); background: var(--surface-hover); }
     .link-button[aria-pressed="true"] { color: var(--accent); }
+    .section-head .link-button:last-child { margin-right: -4px; }
 
     #list {
-      max-height: 300px; overflow-y: auto; padding: 0 8px 8px;
+      /* 6 + the row's 8 puts the tiles on the same 14px line as the header and labels. */
+      max-height: 300px; overflow-y: auto; padding: 0 6px 8px;
       display: flex; flex-direction: column; gap: 2px;
       scrollbar-color: rgba(255, 255, 255, .2) transparent; scrollbar-width: thin;
     }
@@ -140,11 +146,14 @@
       <h1>Stretto</h1>
       <div id="conn" class="conn"><span class="dot"></span><span id="conn-text">Checking…</span></div>
     </div>
+    <!-- Named on screen, not just in a tooltip: the site switch below looks identical and
+         only covers one site, so an unlabelled master switch was easy to flip by mistake. -->
+    <label class="switch-label" for="monitoring">Capture</label>
     <label class="switch" title="Take over downloads from this browser">
       <input type="checkbox" id="monitoring" aria-label="Take over downloads from this browser" />
       <span></span>
     </label>
-    <button id="opts" class="icon-button" type="button" aria-label="Options" title="Options">⚙</button>
+    <button id="opts" class="icon-button" type="button" aria-label="Options" title="Options"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3"/></svg></button>
   </header>
 
   <!-- Shown on web pages once Stretto is connected. Off adds the site to the app's skip list. -->

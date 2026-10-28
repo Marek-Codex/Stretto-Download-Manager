@@ -16,11 +16,15 @@ public static class HttpProbe
         using var probe = BuildRequest(request);
         probe.Headers.Range = new RangeHeaderValue(0, 0);
 
+        using var lease = request.HostBudget is { } budget
+            ? await budget.AcquireAsync(request.Url, ct).ConfigureAwait(false) : null;
+
         using var response = await http
             .SendAsync(probe, HttpCompletionOption.ResponseHeadersRead, ct)
             .ConfigureAwait(false);
 
-        response.EnsureSuccessStatusCode();
+        request.HostBudget?.Observe(response, request.Url);
+        RetryPolicy.EnsureSuccess(response);
 
         var finalUrl = response.RequestMessage?.RequestUri ?? request.Url;
         var supportsRanges = response.StatusCode == HttpStatusCode.PartialContent;

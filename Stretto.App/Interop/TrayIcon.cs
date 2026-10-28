@@ -53,6 +53,7 @@ public sealed class TrayIcon : IDisposable
     private nint _window;
     private nint _icon;
     private bool _added;
+    private string? _tooltip;
 
     /// <summary>Raised when the icon is clicked, which should bring the app back.</summary>
     public event Action? Activated;
@@ -90,6 +91,7 @@ public sealed class TrayIcon : IDisposable
         data.szTip = tooltip;
 
         _added = Shell_NotifyIcon(NimAdd, ref data);
+        _tooltip = tooltip;
 
         // The shell can refuse without throwing, typically when Explorer is still starting.
         // Silently ending up with no icon is the confusing outcome, so say so.
@@ -110,7 +112,9 @@ public sealed class TrayIcon : IDisposable
     /// <summary>Changes the hover text, so it can carry the current transfer state.</summary>
     public void SetTooltip(string tooltip)
     {
-        if (!_added) return;
+        // Called on every half-second tick, and the text is usually the same as last time.
+        if (!_added || tooltip == _tooltip) return;
+        _tooltip = tooltip;
 
         var data = NewData();
         data.uFlags = NifTip;

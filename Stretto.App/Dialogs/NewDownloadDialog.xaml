@@ -10,7 +10,7 @@
                 <!-- WinUI's own compact density, scoped to this window rather than set app
                      wide: the main window is somewhere you sit and read, the secondary ones
                      are somewhere you pass through, and they should feel tighter for it. -->
-                <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
+                <ResourceDictionary Source="ms-appx:///Assets/Density.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="FieldLabel" TargetType="TextBlock">
@@ -22,28 +22,33 @@
 
     <!-- Labels above their fields, the Fluent form layout, rather than a column of
          captions down the left. The link leads because it is the only required field. -->
-    <StackPanel x:Name="FormRoot" Spacing="12" Width="480">
+    <!-- Wide and short: the link gets the full width, name and destination share a row
+         beneath it. Three stacked rows made a tall narrow window for what is one line of
+         input and two optional ones. -->
+    <StackPanel x:Name="FormRoot" Spacing="12" Width="620">
         <Grid ColumnSpacing="12" RowSpacing="12">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Spacing="5">
+            <StackPanel Grid.ColumnSpan="2" Spacing="5">
                 <TextBlock Text="Link" Style="{StaticResource FieldLabel}" />
                 <TextBox x:Name="AddressBox" PlaceholderText="https://" TextChanged="Address_TextChanged" />
+                <TextBlock x:Name="SourceSummary" FontSize="{StaticResource StrettoTextHint}" Opacity="0.7"
+                           MinHeight="16" TextTrimming="CharacterEllipsis" />
             </StackPanel>
 
-            <StackPanel Grid.Row="1" Spacing="5">
+            <StackPanel Grid.Row="1" Spacing="5" VerticalAlignment="Top">
                 <TextBlock Text="File name" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="FileNameBox" PlaceholderText="As the server names it" />
+                <TextBox x:Name="FileNameBox" PlaceholderText="As the server names it" TextChanged="FileName_TextChanged" />
             </StackPanel>
 
-            <StackPanel Grid.Row="2" Spacing="5">
+            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="5">
                 <TextBlock Text="Save to" Style="{StaticResource FieldLabel}" />
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>

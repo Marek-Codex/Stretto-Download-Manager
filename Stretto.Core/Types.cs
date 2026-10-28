@@ -13,6 +13,9 @@ public sealed class DownloadRequest
 
     public string? FileName { get; init; }
 
+    /// <summary>Called only after the engine has opened the actual output file.</summary>
+    public Action<string>? OutputFileOpened { get; init; }
+
     /// <summary>Extra request headers (Referer, User-Agent, Authorization) forwarded from the browser.</summary>
     public IReadOnlyDictionary<string, string> Headers { get; init; } = new Dictionary<string, string>();
 
@@ -32,6 +35,7 @@ public sealed class DownloadRequest
     /// </summary>
     public bool Adaptive { get; init; }
     public IBandwidthLimiter? BandwidthLimiter { get; init; }
+    public HostRequestBudget? HostBudget { get; init; }
 
     /// <summary>False keeps an existing file and writes alongside it as "name (2).ext".
     /// A part-finished download is resumed rather than renamed, since its sidecar is the

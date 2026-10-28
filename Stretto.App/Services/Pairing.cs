@@ -154,6 +154,7 @@ public static class Pairing
         }
 
         // Shipped next to the executable.
+        Add(Path.Combine(BundledExtensions.Root, "chromium"));
         Add(Path.Combine(AppContext.BaseDirectory, "extensions", "chromium"));
 
         // And the source tree it was built from, found by walking up rather than counting

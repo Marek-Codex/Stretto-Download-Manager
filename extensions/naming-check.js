@@ -16,6 +16,7 @@ function run({ nameFrom, tabs, scenario }) {
       minVideoKb: 0, skipHosts: [], alwaysHosts: [], ...(nameFrom ? { nameFrom } : {}),
     },
   };
+  const session = {};
 
   const listenerSink = (name) => ({ addListener: (fn) => { listeners[name] = fn; } });
   const deep = () => new Proxy(function () {}, {
@@ -30,7 +31,10 @@ function run({ nameFrom, tabs, scenario }) {
         get: async (d) => ({ ...d, ...store }),
         set: async (o) => { Object.assign(store, o); },
       },
-      session: undefined,
+      session: {
+        get: async (defaults) => ({ ...defaults, ...session }),
+        set: async (update) => { Object.assign(session, update); },
+      },
       onChanged: { addListener() {} },
     }),
     tabs: fb({
@@ -39,6 +43,7 @@ function run({ nameFrom, tabs, scenario }) {
       onUpdated: listenerSink('tabs.onUpdated'),
     }),
     cookies: { getAll: async () => [] },
+    webRequest: fb({ onBeforeRequest: listenerSink('onBeforeRequest') }),
     downloads: fb({
       onDeterminingFilename: listenerSink('onDeterminingFilename'),
       cancel: async () => {}, erase: async () => {}, download: async () => 1,
@@ -57,7 +62,7 @@ function run({ nameFrom, tabs, scenario }) {
     fetch: async (url, opts = {}) => {
       const path = new URL(url).pathname;
       const reply = (o) => ({ ok: true, json: async () => o });
-      if (path === '/add') { sent.push(JSON.parse(opts.body)); return reply({ action: 'taken' }); }
+      if (path === '/add') { sent.push(JSON.parse(opts.body)); return reply(scenario && 'addReply' in scenario ? scenario.addReply : { action: 'taken' }); }
       if (path === '/rules') return reply(store.rules);
       return reply({ ok: true });
     },
@@ -68,6 +73,12 @@ function run({ nameFrom, tabs, scenario }) {
   for (const f of ['common.js', 'media.js', 'capture-chromium.js'])
     vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 
+  const determine = listeners.onDeterminingFilename;
+  listeners.onDeterminingFilename = (item, suggest) => {
+    const now = Date.now();
+    listeners.onBeforeRequest({ url: item.url, method: 'GET', timeStamp: now });
+    return determine({ ...item, startTime: new Date(now).toISOString() }, suggest);
+  };
   return { ctx, sent, logs, listeners };
 }
 
@@ -87,6 +98,12 @@ const expect = (label, got, want) => {
   const pageTitle = 'Funny Cat Video - Site';
   const page = 'https://www.site.com/video/9981/funny-cat';
   const cdn = 'https://b-cdn.site-cdn.com/files/26e2fb0b265b99d.mp4';
+  for (const [response, expected] of [[{ action: 'queued' }, true], [{ action: 'taken' }, true],
+    [{ action: 'browser' }, false], [{}, false], [null, false], [{ action: 'unexpected' }, false]]) {
+    const h = run({ tabs: [], scenario: { addReply: response } });
+    const accepted = await h.ctx.sendToApp({ token: 't', port: 9615 }, { url: cdn });
+    expect(`handoff requires explicit acceptance (${JSON.stringify(response)})`, accepted, expected);
+  }
 
   // 1. The popup's send (sendMedia).
   {

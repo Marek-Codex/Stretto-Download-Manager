@@ -427,7 +427,7 @@ public sealed partial class MainWindow
         var promptWindow = new NewDownloadWindow(_settings, _downloads.DefaultDirectory, "Download captured");
         var dialog = promptWindow.Dialog;
 
-        dialog.PrefillFromCapture(request.Url, request.FileName, request.Referrer);
+        dialog.PrefillFromCapture(request.Url, request.FileName, request.Referrer, request.Size, request.Mime);
         promptWindow.Show();
         var outcome = await promptWindow.ClosedTask;
 

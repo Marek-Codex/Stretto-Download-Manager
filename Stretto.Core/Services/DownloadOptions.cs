@@ -48,6 +48,7 @@ public sealed record DownloadOptions
 
     /// <summary>The yt-dlp format picked in the grabber, if any.</summary>
     public string? FormatId { get; init; }
+    public int? HlsProgramIndex { get; init; }
 
     /// <summary>Credentials for a site that challenges for HTTP authentication.</summary>
     public string? Username { get; init; }

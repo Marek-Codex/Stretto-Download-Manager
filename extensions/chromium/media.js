@@ -340,10 +340,13 @@ api.tabs.onUpdated.addListener((tabId, change) => {
 async function recordMedia(item) {
   const entry = { ...item, key: mediaKey(item.url), name: await nameFor(item), seenAt: Date.now() };
   let isNew = false;
+  let contextChanged = false;
   const list = await updateMedia((current) => {
     const next = [...current];
     const existing = next.findIndex((m) => (m.key || m.url) === entry.key && m.tabId === entry.tabId);
     isNew = existing < 0;
+    contextChanged = existing >= 0 && entry.requestHeaders
+      && JSON.stringify(entry.requestHeaders) !== JSON.stringify(next[existing].requestHeaders);
 
     // Keep the first address seen for an existing key: it is the one without a range
     // tail, or at least the one the popup already shows. Only the size and time move.
@@ -366,7 +369,7 @@ async function recordMedia(item) {
 
   // Segments never leave the extension: at dozens per page they would drown the
   // app's feed, and the popup already lists them under More formats.
-  if (isNew && item.kind !== 'segment') void reportMedia(entry);
+  if ((isNew || contextChanged) && item.kind !== 'segment') void reportMedia(entry);
 
   const count = list.filter((m) => m.tabId === item.tabId && m.kind !== 'segment').length;
   try {

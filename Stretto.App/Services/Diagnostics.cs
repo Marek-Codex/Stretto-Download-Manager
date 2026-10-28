@@ -8,9 +8,8 @@ namespace Stretto.App.Services;
 /// A plain text report for pasting into a bug report: versions, the settings that change
 /// behaviour, and the end of the log.
 ///
-/// Deliberately leaves out anything personal or secret: no passwords, proxy address,
-/// saved logins, cookies, download folder or download list. Paths in the log are shortened
-/// to "~" for the user profile so the Windows account name does not travel either.
+/// Settings omit credentials and the download list. Logs can still contain download URLs,
+/// paths and error details; the report asks the user to review these before sharing.
 /// </summary>
 public static class Diagnostics
 {
@@ -35,7 +34,7 @@ public static class Diagnostics
         text.AppendLine($"  antivirus scan {settings.ScanWithAntivirus}");
         text.AppendLine();
 
-        text.AppendLine($"Log (last {LogLines} lines)");
+        text.AppendLine($"Log (last {LogLines} lines; review URLs, paths and error details before sharing)");
         text.Append(TailOfLog());
 
         return Anonymise(text.ToString());

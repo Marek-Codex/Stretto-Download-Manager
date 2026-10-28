@@ -33,6 +33,10 @@ The app build assembles `extensions/firefox` in its output from both folders and
 `extensions/stretto-firefox.xpi`. Shared code uses `api` (`browser` in Firefox, `chrome`
 otherwise); both return promises.
 
+## Chromium handoff behavior
+
+Only requests observed as GET are eligible for automatic capture. POST and unknown/ambiguous requests remain in the browser. The browser's original request is kept until Stretto accepts, and decline/offline/error fallback releases that same request; it is never recreated by URL. This preserves form/session semantics on fallback. A browser configured to ask where to save each file may show its own Save dialog during Stretto confirmation. Use the site skip list or disable capture for one-use links that cannot be fetched again by another app.
+
 ## Firefox
 
 Firefox has no `downloads.onDeterminingFilename`, but it still has blocking `webRequest`
@@ -49,11 +53,14 @@ The popup's **Start it** link goes through the `stretto:` scheme, which the app 
 under `HKCU\Software\Classes` on every launch. Per-user, so nothing needs elevation and
 removing it is one key.
 
-Installing: Developer Edition, Nightly, ESR, LibreWolf, Waterfox, Floorp and Zen can set
-`xpinstall.signatures.required` to false and install the `.xpi` permanently. Regular Firefox
-accepts it only as a temporary add-on (about:debugging), which it forgets on restart. A
-permanent install there needs Mozilla's free unlisted signing. The setup guide walks through
-each case.
+The build includes an unsigned `stretto-firefox.xpi`. The setup wizard offers it as a
+drag tile with a signing warning. Regular Firefox rejects permanent unsigned installation;
+use **about:debugging → This Firefox → Load Temporary Add-on**, then select the unpacked
+`manifest.json`. Firefox forgets that temporary installation on restart. Developer Edition,
+Nightly and ESR can accept unsigned installation depending on their configuration;
+Firefox forks have their own policies. The wizard does not change signature settings.
+Permanent regular-Firefox distribution requires Mozilla signing, including for a
+self-distributed XPI. See [Mozilla's distribution guidance](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
 
 Firefox may send no Origin on the pairing request, so the add-on names itself in an
 `X-Stretto-Extension` header, accepted only on an originless request and only for

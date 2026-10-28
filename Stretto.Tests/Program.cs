@@ -10,14 +10,26 @@ namespace Stretto.Tests;
 /// throw" but "did a segment land at the wrong offset" and "did a resume append to a file
 /// it should have restarted".
 /// </summary>
-public static class Program
+public static partial class Program
 {
     private static int _port = 8110;
     private static int NextPort() => Interlocked.Increment(ref _port);
 
-    public static async Task<int> Main()
+    public static async Task<int> Main(string[] args)
     {
+        if (args.LastOrDefault()?.StartsWith("https://stretto.invalid/yt-dlp-fixture/", StringComparison.Ordinal) == true)
+            return await RunYtDlpFixtureAsync(args);
         var runner = new Runner();
+        if (args.Contains("--connection-policy"))
+        {
+            await RunConnectionPolicyTests(runner);
+            return runner.Report();
+        }
+        if (args.Contains("--release-regressions"))
+        {
+            await RunReleaseRegressions(runner);
+            return runner.Report();
+        }
 
         await runner.Run("downloads a file correctly over many connections", DownloadsCorrectly);
         await runner.Run("takes over the work of a slow connection", StealsFromSlowConnection);
@@ -52,6 +64,8 @@ public static class Program
         await runner.Run("hashes a file with each supported algorithm", HashesFile);
         await runner.Run("reads the algorithm and value out of a pasted checksum", ReadsPastedChecksum);
 
+        await RunReleaseRegressions(runner);
+        await RunConnectionPolicyTests(runner);
         return runner.Report();
     }
 

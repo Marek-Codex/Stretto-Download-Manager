@@ -69,12 +69,12 @@ public sealed class FtpDownloader
             return Finish(path, total, stopwatch, resumed: true, modified, request);
         }
 
-        if (total > 0)
-            AtomicFile.WriteAllText(statePath, JsonSerializer.Serialize(identity));
-
-        await using (var file = new FileStream(path, existing > 0 ? FileMode.Append : FileMode.Create,
+        await using (var file = new FileStream(path, existing > 0 ? FileMode.Append : request.Overwrite ? FileMode.Create : FileMode.CreateNew,
                                                FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
         {
+            request.OutputFileOpened?.Invoke(path);
+            if (total > 0)
+                AtomicFile.WriteAllText(statePath, JsonSerializer.Serialize(identity));
             await using var data = await control.OpenDataStreamAsync(remotePath, existing, ct).ConfigureAwait(false);
 
             var buffer = new byte[1 << 16];

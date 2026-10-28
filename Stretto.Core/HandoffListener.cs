@@ -140,9 +140,11 @@ public sealed class HandoffListener : IDisposable
     /// Asked what to do with a captured download. Returning false means the app declined it
     /// and the browser should carry on with its own download.
     ///
-    /// This is why /add answers slowly when the user has asked to confirm captures: the
-    /// extension holds its download paused until the answer arrives, so declining costs
-    /// nothing and the browser resumes exactly where it was.
+    /// This is why /add answers slowly when the user has asked to confirm captures. The
+    /// Chromium extension has already cancelled the browser's copy by then (holding it let
+    /// Brave show its own Save dialog too), so a decline is re-issued to the browser by
+    /// address: cookies carry over, but a download that began as a form POST does not.
+    /// Firefox holds the response instead, so a decline there resumes it untouched.
     /// </summary>
     public Func<HandoffRequest, Task<bool>>? Decide { get; set; }
 

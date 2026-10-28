@@ -22,6 +22,7 @@ public static class MediaDownloadOptions
             IsStream = candidate.NeedsMuxing,
             IsSiteVideo = candidate.Kind == MediaKind.Site,
             FormatId = candidate.FormatId,
+            HlsProgramIndex = candidate.HlsProgramIndex,
             Connections = settings.DefaultConnections,
             SortByType = settings.SortByType && directory is null,
             StartNow = startNow ?? settings.StartAutomatically,
@@ -29,6 +30,8 @@ public static class MediaDownloadOptions
             Referrer = candidate.Referrer,
             UserAgent = candidate.UserAgent,
             Headers = candidate.Headers,
+            Mime = candidate.Kind == MediaKind.Dash ? "application/dash+xml"
+                : candidate.Kind == MediaKind.Hls ? "application/vnd.apple.mpegurl" : null,
         };
     }
 }

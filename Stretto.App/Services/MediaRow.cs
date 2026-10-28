@@ -6,15 +6,15 @@ using System.Runtime.CompilerServices;
 namespace Stretto.App.Services;
 
 /// <summary>
-/// One form a piece of media is available in: an HLS rendition, which is its own address,
+/// One form a piece of media is available in: an HLS program in its master playlist,
 /// or a yt-dlp format, which is a name only yt-dlp can turn into one.
 /// </summary>
-public sealed record FormatOption(string Label, Uri? Url = null, string? FormatId = null)
+public sealed record FormatOption(string Label, Uri? Url = null, string? FormatId = null, int? HlsProgramIndex = null)
 {
     /// <summary>The entry that means "whatever the source picks".</summary>
     public static FormatOption Auto { get; } = new("Auto");
 
-    public bool IsAuto => Url is null && FormatId is null;
+    public bool IsAuto => Url is null && FormatId is null && HlsProgramIndex is null;
 }
 
 /// <summary>
@@ -29,7 +29,14 @@ public sealed class MediaRow(MediaCandidate candidate) : INotifyPropertyChanged
 {
     private FormatOption? _chosen;
 
-    public MediaCandidate Candidate { get; } = candidate;
+    public MediaCandidate Candidate { get; private set; } = candidate;
+
+    public void UpdateCandidate(MediaCandidate value)
+    {
+        Candidate = value;
+        Notify(nameof(Name));
+        Notify(nameof(Address));
+    }
 
     public ObservableCollection<FormatOption> Formats { get; } = [];
 
@@ -61,6 +68,7 @@ public sealed class MediaRow(MediaCandidate candidate) : INotifyPropertyChanged
         {
             Url = chosen.Url ?? Candidate.Url,
             FormatId = chosen.FormatId ?? Candidate.FormatId,
+            HlsProgramIndex = chosen.HlsProgramIndex ?? Candidate.HlsProgramIndex,
             Label = $"{Candidate.Label} · {chosen.Label}",
         };
 
@@ -81,7 +89,8 @@ public sealed class MediaRow(MediaCandidate candidate) : INotifyPropertyChanged
             {
                 case MediaKind.Hls:
                     var variants = await HlsPlaylist.FetchVariantsAsync(
-                        http, Candidate.Url, Candidate.Cookie, Candidate.Referrer, ct);
+                        http, Candidate.Url, Candidate.Cookie, Candidate.Referrer, ct,
+                        Candidate.UserAgent, Candidate.Headers);
 
                     // One rendition is not a choice, so it is not offered as one.
                     if (variants.Count > 1)
@@ -89,12 +98,12 @@ public sealed class MediaRow(MediaCandidate candidate) : INotifyPropertyChanged
                         Formats.Add(FormatOption.Auto);
 
                         foreach (var variant in variants)
-                            Formats.Add(new FormatOption(variant.Label, variant.Url));
+                            Formats.Add(new FormatOption(variant.Label, HlsProgramIndex: variant.ProgramIndex));
                     }
 
                     break;
 
-                case MediaKind.Site when ToolBox.IsAvailable(Tool.YtDlp):
+                case MediaKind.Site when await ToolBox.IsAvailableAsync(Tool.YtDlp):
                     var formats = await new YtDlp(ToolBox.Resolve(Tool.YtDlp))
                         .ListFormatsAsync(Candidate.Url.ToString(), ct);
 

@@ -30,11 +30,14 @@ public sealed class DownloadProgressWindow : Window
     private readonly TextBlock _speed = Text("", 15, 1);
     private readonly TextBlock _timeLeft = Text("", 12.5, .7);
     private readonly TextBlock _location = Text("", 11.5, .6);
+    private readonly TextBlock _error = Text("", 12, 1);
     private readonly ProgressBar _bar = new() { MinHeight = 4, Minimum = 0, Maximum = 100 };
     private readonly Button _pause = new() { Content = "Pause", MinWidth = 84 };
     private readonly FontIcon _glyph = new() { FontSize = 18 };
     private readonly TitleBar _titleBar;
     private Border _footer = null!;
+    private bool _updateQueued;
+    private bool _windowClosed;
 
     public DownloadProgressWindow(AppWindow owner, DownloadItem item, DownloadService downloads)
     {
@@ -42,8 +45,8 @@ public sealed class DownloadProgressWindow : Window
         _downloads = downloads;
 
         _titleBar = WindowAppearance.ConfigureUtilityWindow(this, item.Name, dialog: false);
-        var width = Math.Clamp((int)Math.Ceiling(_item.Name.Length * 7.5 + 200), 460, 700);
-        var height = 300;
+        var width = Math.Clamp((int)Math.Ceiling(_item.Name.Length * 7.5 + 200), 560, 760);
+        var height = 268;
         AppWindow.Resize(new SizeInt32(width, height));
         AppWindow.Move(new PointInt32(owner.Position.X + Math.Max(0, (owner.Size.Width - width) / 2), owner.Position.Y + Math.Max(0, (owner.Size.Height - height) / 2)));
 
@@ -63,10 +66,15 @@ public sealed class DownloadProgressWindow : Window
         shell.Children.Add(body);
 
         Content = shell.Compact();
+        _ = WindowAppearance.FitToContentAsync(this, shell, 640, 720);
 
         // Mirror the item while the window is open, and let go cleanly when it closes.
         _item.PropertyChanged += OnItemChanged;
-        Closed += (_, _) => _item.PropertyChanged -= OnItemChanged;
+        Closed += (_, _) =>
+        {
+            _windowClosed = true;
+            _item.PropertyChanged -= OnItemChanged;
+        };
 
         Update();
     }
@@ -147,16 +155,24 @@ public sealed class DownloadProgressWindow : Window
 
         _footer = WindowAppearance.Footer([_pause, close], [folder]);
 
-        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20, 8, 20, 16) };
+        var content = new StackPanel { Spacing = 12, Margin = new Thickness(16, 8, 16, 16) };
         content.Children.Add(heading);
         content.Children.Add(figures);
         content.Children.Add(_bar);
         content.Children.Add(_location);
+        _error.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+        _error.IsTextSelectionEnabled = true;
+        content.Children.Add(_error);
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.Children.Add(content);
+        root.Children.Add(new ScrollViewer
+        {
+            Content = content,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        });
         Grid.SetRow(_footer, 1);
         root.Children.Add(_footer);
 
@@ -164,7 +180,17 @@ public sealed class DownloadProgressWindow : Window
     }
 
     private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
-        => DispatcherQueue.TryEnqueue(Update);
+    {
+        // One progress sample raises several property notifications. Paint once after
+        // that burst rather than queueing the entire window update for each property.
+        if (_updateQueued || _windowClosed) return;
+        _updateQueued = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+        {
+            _updateQueued = false;
+            if (!_windowClosed) Update();
+        })) _updateQueued = false;
+    }
 
     private void Update()
     {
@@ -188,6 +214,8 @@ public sealed class DownloadProgressWindow : Window
             ? $"{DownloadItem.FormatBytes((long)_item.BytesPerSecond)}/s"
             : "";
         _timeLeft.Text = _item.TimeLeft is { } left ? $"{DownloadItem.FormatDuration(left)} left" : "";
+        _error.Text = _item.Status == DownloadStatus.Failed ? _item.Error ?? "The download could not finish. Try again." : "";
+        _error.Visibility = _item.Status == DownloadStatus.Failed ? Visibility.Visible : Visibility.Collapsed;
 
         // The limit is only worth a line when there is one.
         var limited = _downloads.SpeedLimitLabel.StartsWith("Limit", StringComparison.Ordinal);
@@ -196,7 +224,7 @@ public sealed class DownloadProgressWindow : Window
             : $"Saving to {_item.TargetDirectory}";
 
         var done = _item.Status == DownloadStatus.Complete;
-        _pause.Content = done ? "Open" : _item.CanResume ? "Resume" : "Pause";
+        _pause.Content = done ? "Open" : _item.Status == DownloadStatus.Failed ? "Retry" : _item.CanResume ? "Resume" : "Pause";
         _pause.IsEnabled = done || _item.CanPause || _item.CanResume;
         _pause.Style = done ? (Style)Application.Current.Resources["AccentButtonStyle"] : null;
 

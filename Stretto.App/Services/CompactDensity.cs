@@ -14,7 +14,7 @@ namespace Stretto.App.Services;
 /// </summary>
 public static class CompactDensity
 {
-    private static readonly Uri Source = new("ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml");
+    private static readonly Uri Source = new("ms-appx:///Assets/Density.xaml");
 
     /// <summary>
     /// Scopes compact metrics to <paramref name="root"/> and everything inside it. Merged

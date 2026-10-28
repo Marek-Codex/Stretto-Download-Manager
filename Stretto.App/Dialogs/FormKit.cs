@@ -108,6 +108,9 @@ internal static class FormKit
         OnContent = "",
         OffContent = "",
         MinWidth = 0,
+        // The template keeps a 12px gap for the caption even when it is empty, which left
+        // every switch short of the right edge the combo boxes and buttons end on.
+        Margin = new Thickness(0, 0, -12, 0),
     };
 
     /// <summary>A text box with a button beside it, for paths.</summary>

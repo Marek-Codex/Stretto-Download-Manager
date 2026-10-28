@@ -60,6 +60,32 @@ public static class ToolBox
         _ => Stretto.Core.YtDlp.IsAvailable(Resolve(tool)),
     };
 
+    private static readonly object ProbeGate = new();
+    private static readonly Dictionary<string, (Task<bool> Task, DateTimeOffset Started)> AvailabilityProbes = [];
+
+    public static Task<bool> IsAvailableAsync(Tool tool)
+    {
+        var executable = Resolve(tool);
+        lock (ProbeGate)
+        {
+            // Selection changes can ask about the same tool many times in a burst.
+            // Share that work and briefly retain its result instead of launching a
+            // new process for each row. Component changes invalidate the cache.
+            if (AvailabilityProbes.TryGetValue(executable, out var prior)
+                && (!prior.Task.IsCompleted || DateTimeOffset.UtcNow - prior.Started < TimeSpan.FromSeconds(5)))
+                return prior.Task;
+            var probe = Task.Run(() => tool == Tool.Ffmpeg
+                ? StreamDownloader.IsAvailable(executable) : YtDlp.IsAvailable(executable));
+            AvailabilityProbes[executable] = (probe, DateTimeOffset.UtcNow);
+            return probe;
+        }
+    }
+
+    private static void InvalidateAvailability()
+    {
+        lock (ProbeGate) AvailabilityProbes.Clear();
+    }
+
     /// <summary>Where a tool is coming from, for the Settings list.</summary>
     public static string Describe(Tool tool)
     {
@@ -99,6 +125,7 @@ public static class ToolBox
         }
         finally
         {
+            InvalidateAvailability();
             if (File.Exists(temporary))
             {
                 try { File.Delete(temporary); }
@@ -186,8 +213,14 @@ public static class ToolBox
             if (probe is null)
                 return false;
 
-            probe.WaitForExit(5000);
-            return probe.HasExited && probe.ExitCode == 0;
+            _ = probe.StandardOutput.ReadToEndAsync();
+            _ = probe.StandardError.ReadToEndAsync();
+            if (!probe.WaitForExit(5000))
+            {
+                probe.Kill(entireProcessTree: true);
+                return false;
+            }
+            return probe.ExitCode == 0;
         }
         catch (Exception)
         {
@@ -294,5 +327,6 @@ public static class ToolBox
                 AppLog.Write($"Could not remove {name}: {exception.Message}");
             }
         }
+        InvalidateAvailability();
     }
 }

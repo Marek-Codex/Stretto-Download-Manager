@@ -48,13 +48,16 @@
             <SolidColorBrush x:Key="StrettoSidebarBrush" Color="#08FFFFFF" />
             <SolidColorBrush x:Key="StrettoSidebarBorderBrush" Color="#12FFFFFF" />
             <SolidColorBrush x:Key="StrettoBarBrush" Color="#0CFFFFFF" />
-            <SolidColorBrush x:Key="StrettoWindowBrush" Color="#FF000B17" />
+            <!-- Secondary window shells. Transparent so their Mica shows through, the way the
+                 main window's root does; an opaque navy here painted over the backdrop and
+                 left every other window a flat slab beside the main one. -->
+            <SolidColorBrush x:Key="StrettoWindowBrush" Color="Transparent" />
             <!-- Hairline between a window's content and its button row, and between
                  rows inside a settings card. -->
             <SolidColorBrush x:Key="StrettoDividerBrush" Color="#12FFFFFF" />
             <!-- Footer strip, one step up from the window so the buttons read as a bar
-                 rather than as more content. -->
-            <SolidColorBrush x:Key="StrettoFooterBrush" Color="#FF030F1C" />
+                 rather than as more content. A tint over Mica, not a solid, for the same reason. -->
+            <SolidColorBrush x:Key="StrettoFooterBrush" Color="#0CFFFFFF" />
 
             <!-- Type scale. Set at the sizes already in use, so naming them changes nothing
                  on screen: this is here to stop the next control inventing a fourteenth

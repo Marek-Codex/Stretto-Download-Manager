@@ -79,9 +79,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
 
     /// <summary>
     /// The Content-Type the browser saw, for a download whose address carries no
-    /// extension. Only used until the probe returns the server's own filename, after
-    /// which the name has the type in it. In memory, and not a secret either way: it is a
-    /// response header the browser already had.
+    /// extension. Retained across restarts so extensionless manifests keep their engine.
     /// </summary>
     public string? Mime { get; set; }
 
@@ -106,6 +104,7 @@ public sealed class DownloadItem : INotifyPropertyChanged
 
     /// <summary>Which yt-dlp format to ask for. Null lets yt-dlp choose.</summary>
     public string? FormatId { get; init; }
+    public int? HlsProgramIndex { get; init; }
 
     /// <summary>HTTP credentials, when the site asks for them.</summary>
     public string? Username { get; init; }
@@ -163,8 +162,8 @@ public sealed class DownloadItem : INotifyPropertyChanged
 
     public string? FilePath { get; set; }
 
-    /// <summary>Where the bytes are, or will be. A part-finished download has no FilePath
-    /// yet but its data is already on disk under the name the probe resolved.</summary>
+    /// <summary>Display fallback before the engine opens a file. Only FilePath establishes
+    /// an owned output; this guessed path must never authorize deletion.</summary>
     public string? ResolvedPath => FilePath
         ?? (Name.Length > 0 ? Path.Combine(TargetDirectory, Name) : null);
 

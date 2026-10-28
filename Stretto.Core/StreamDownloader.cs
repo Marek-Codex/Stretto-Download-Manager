@@ -33,8 +33,15 @@ public sealed partial class StreamDownloader
                 CreateNoWindow = true,
             });
 
-            probe?.WaitForExit(4000);
-            return probe?.ExitCode == 0;
+            if (probe is null) return false;
+            _ = probe.StandardOutput.ReadToEndAsync();
+            _ = probe.StandardError.ReadToEndAsync();
+            if (!probe.WaitForExit(4000))
+            {
+                Kill(probe);
+                return false;
+            }
+            return probe.ExitCode == 0;
         }
         catch (Exception)
         {
@@ -121,8 +128,14 @@ public sealed partial class StreamDownloader
                 });
                 if (help is not null)
                 {
-                    var text = help.StandardOutput.ReadToEnd() + help.StandardError.ReadToEnd();
-                    help.WaitForExit(4000);
+                    var output = help.StandardOutput.ReadToEndAsync();
+                    var errors = help.StandardError.ReadToEndAsync();
+                    if (!help.WaitForExit(4000))
+                    {
+                        Kill(help);
+                        return false;
+                    }
+                    var text = output.GetAwaiter().GetResult() + errors.GetAwaiter().GetResult();
                     supported = text.Contains("extension_picky", StringComparison.Ordinal);
                 }
             }
@@ -149,16 +162,20 @@ public sealed partial class StreamDownloader
         CancellationToken ct = default,
         IReadOnlyDictionary<string, string>? extraHeaders = null,
         bool overwrite = false,
-        bool tagClashes = false)
+        bool tagClashes = false,
+        Action<string>? outputFileOpened = null,
+        int? hlsProgramIndex = null,
+        bool isDash = false)
     {
         Directory.CreateDirectory(targetDirectory);
 
         fileName = SafeFileName(fileName);
-        if (!Path.HasExtension(fileName) || Path.GetExtension(fileName) is ".m3u8" or ".mpd")
+        if (!Path.HasExtension(fileName) || Path.GetExtension(fileName).ToLowerInvariant() is ".m3u8" or ".m3u" or ".mpd")
             fileName = Path.ChangeExtension(fileName, ".mp4");
 
         var output = ResolveOutputPath(targetDirectory, fileName, overwrite, tagClashes ? SourceTag.For(playlist) : null);
         var stopwatch = Stopwatch.StartNew();
+        isDash |= IsDash(playlist);
 
         var headers = new List<string>();
         if (!string.IsNullOrEmpty(cookie)) headers.Add($"Cookie: {cookie}");
@@ -174,9 +191,8 @@ public sealed partial class StreamDownloader
             headers.Add($"{name}: {value}");
         }
 
-        // -n is a second guard against a file appearing between path selection and ffmpeg
-        // opening its output. The app's overwrite preference is the only path to -y.
-        var arguments = new List<string> { "-hide_banner", overwrite ? "-y" : "-n" };
+        // The output is reserved atomically below, before ffmpeg may overwrite it.
+        var arguments = new List<string> { "-hide_banner", "-y", "-nostdin" };
         if (headers.Count > 0)
             arguments.AddRange(["-headers", string.Concat(headers.Select(h => h + "\r\n"))]);
 
@@ -186,30 +202,36 @@ public sealed partial class StreamDownloader
         // A playlist without #EXT-X-ENDLIST is taken for live, and ffmpeg then starts three
         // segments from the end: about six seconds of a video that browsers play from the
         // top. Plenty of on-demand sites leave the tag off. Start at the first segment.
-        if (!IsDash(playlist))
+        if (!isDash)
             arguments.AddRange(["-live_start_index", "0"]);
 
         // Sites that serve the whole video as one file, cut up by #EXT-X-BYTERANGE, came
         // out as the first segment only: ffmpeg treats each range as a seekable file,
         // reads one, and stops without an error. Not seeking within a segment costs
         // nothing for ordinary playlists and fixes those. Reproduced with ffmpeg 9.
-        if (!IsDash(playlist))
+        if (!isDash)
             arguments.AddRange(["-http_seekable", "0"]);
 
         // Segments come one request at a time, and a CDN dropping one connection used to
         // cost that segment: ffmpeg skips it and carries on.
         arguments.AddRange(["-reconnect", "1", "-reconnect_on_network_error", "1", "-reconnect_delay_max", "10"]);
 
-        if (!IsDash(playlist) && SupportsExtensionPicky(_ffmpeg))
+        if (!isDash && await Task.Run(() => SupportsExtensionPicky(_ffmpeg), ct).ConfigureAwait(false))
             arguments.AddRange(["-extension_picky", "0", "-allowed_extensions", "ALL"]);
-        else if (!IsDash(playlist))
+        else if (!isDash)
             arguments.AddRange(["-allowed_extensions", "ALL"]);
 
         arguments.AddRange([
             "-i", playlist.ToString(),
+        ]);
+        // Keep the master input: its program contains both this rendition and any
+        // external audio group. Opening the rendition URL alone drops that audio.
+        if (hlsProgramIndex is >= 0)
+            arguments.AddRange(["-map", $"0:p:{hlsProgramIndex}:v?", "-map", $"0:p:{hlsProgramIndex}:a?"]);
+        arguments.AddRange([
             "-c", "copy",
-            // HLS carries AAC in ADTS frames, which MP4 cannot hold as-is.
-            "-bsf:a", "aac_adtstoasc",
+            // The MP4 muxer inserts AAC's ADTS conversion when needed. Forcing an AAC
+            // filter on every stream rejects otherwise valid MP3/AC-3 audio.
             "-movflags", "+faststart",
             "-progress", "pipe:1",
             "-nostats",
@@ -232,6 +254,10 @@ public sealed partial class StreamDownloader
             .Select(a => Redact(a).Contains(' ') ? $"\"{Redact(a)}\"" : Redact(a))));
         await DescribePlaylistAsync(playlist, headers, ct).ConfigureAwait(false);
 
+        // Reserve the output atomically before letting ffmpeg overwrite our reservation.
+        // An unrelated file that appeared after name selection must remain untouched.
+        using (var reserved = new FileStream(output, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write)) { }
+        outputFileOpened?.Invoke(output);
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start ffmpeg.");
         using var killOnCancel = ct.Register(() => Kill(process));

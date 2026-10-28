@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The density every secondary window uses: WinUI's compact metrics, with input heights
+     put back to the standard 32.
+
+     Compact shrinks text boxes and combo boxes to 24 but leaves Button, CheckBox and
+     ToggleSwitch alone, so every row that paired a field with a button (Save to and its
+     browse button, a form above its footer) had two heights side by side. Lists, rows and
+     spacing stay compact; only the inputs are restored, so a field and its button match.
+     A key defined here beats the same key from the merged dictionary. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <x:Double x:Key="TextControlThemeMinHeight">32</x:Double>
+    <Thickness x:Key="TextControlThemePadding">10,5,6,6</Thickness>
+    <x:Double x:Key="ComboBoxMinHeight">32</x:Double>
+    <Thickness x:Key="ComboBoxPadding">12,5,0,7</Thickness>
+</ResourceDictionary>

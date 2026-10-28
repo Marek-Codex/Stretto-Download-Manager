@@ -131,7 +131,7 @@ public sealed class DownloadAdvancedWindow : Window
         proxyTop.Children.Add(systemSettings);
 
         // The same segmented bar as Batch and Queues, rather than two hand-coloured buttons.
-        var selector = new SelectorBar { Margin = new Thickness(-4, 0, 0, 0) };
+        var selector = new SelectorBar { Margin = new Thickness(-12, 0, 0, 0) };
         selector.Items.Add(_authenticationTab);
         selector.Items.Add(_proxyTab);
         selector.SelectionChanged += (_, _) => SelectPane(authentication: selector.SelectedItem == _authenticationTab);

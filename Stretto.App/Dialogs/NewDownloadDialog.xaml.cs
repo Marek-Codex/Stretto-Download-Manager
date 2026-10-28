@@ -16,6 +16,10 @@ public sealed partial class NewDownloadDialog : UserControl
     private string _username = string.Empty;
     private string _password = string.Empty;
     private bool _rememberAuth;
+    private string? _credentialsHost;
+    private string? _captureAddress;
+    private long? _captureSize;
+    private string? _captureMime;
     private ProxyMode? _proxyOverride;
     private ProxyProtocol? _proxyProtocolOverride;
     private string _proxyHost = string.Empty;
@@ -134,8 +138,11 @@ public sealed partial class NewDownloadDialog : UserControl
     /// Fills the dialog from a download the browser just handed over, and offers the escape
     /// hatch for sites whose download button does not survive being re-requested.
     /// </summary>
-    public void PrefillFromCapture(string url, string? fileName, string? referrer = null)
+    public void PrefillFromCapture(string url, string? fileName, string? referrer = null, long? size = null, string? mime = null)
     {
+        _captureAddress = url.Trim();
+        _captureSize = size;
+        _captureMime = mime;
         AddressBox.Text = url;
         if (!string.IsNullOrWhiteSpace(fileName))
             FileNameBox.Text = fileName;
@@ -261,6 +268,12 @@ public sealed partial class NewDownloadDialog : UserControl
     {
         UpdateButtons();
         FillRememberedLogin();
+        if (_ready) UpdateHint();
+    }
+
+    private void FileName_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_ready) UpdateHint();
     }
 
     private async void More_Click(object sender, RoutedEventArgs e)
@@ -286,20 +299,41 @@ public sealed partial class NewDownloadDialog : UserControl
     /// <summary>Shows a login already saved for this host, so the user is not asked twice.</summary>
     private void FillRememberedLogin()
     {
-        if (!_ready || _username.Length > 0) return;
+        if (!_ready) return;
+        var host = Uri.TryCreate(Address, UriKind.Absolute, out var uri) ? uri.IdnHost : null;
+        if (_credentialsHost is not null && !string.Equals(host, _credentialsHost, StringComparison.OrdinalIgnoreCase))
+        {
+            _username = _password = "";
+            _rememberAuth = false;
+            _credentialsHost = null;
+            UpdateAdvancedSummary();
+        }
+        if (_username.Length > 0) return;
         if (SiteCredentials.For(Address) is not { } login) return;
 
         _username = login.Username;
         _password = login.Password;
         _rememberAuth = true;
+        _credentialsHost = host;
         UpdateAdvancedSummary();
     }
 
     private void UpdateButtons()
     {
+        if (!_ready) return;
         var valid = IsAddressValid;
         DownloadNowButton.IsEnabled = valid;
         DownloadLaterButton.IsEnabled = valid;
+        var parts = new List<string>();
+        if (valid && Uri.TryCreate(Address, UriKind.Absolute, out var source)) parts.Add(source.IdnHost);
+        if (Address == _captureAddress)
+        {
+            if (_captureSize is > 0) parts.Add(DownloadItem.FormatBytes(_captureSize.Value));
+            if (!string.IsNullOrWhiteSpace(_captureMime)) parts.Add(_captureMime.Split(';')[0]);
+        }
+        SourceSummary.Text = parts.Count > 0 ? string.Join("  ·  ", parts)
+            : "Use an HTTP, HTTPS or FTP link. File details are checked when downloading starts.";
+        ToolTipService.SetToolTip(SourceSummary, SourceSummary.Text);
     }
 
     /// <summary>
@@ -329,6 +363,7 @@ public sealed partial class NewDownloadDialog : UserControl
         _username = window.Username;
         _password = window.Password;
         _rememberAuth = window.RememberLogin;
+        _credentialsHost = Uri.TryCreate(Address, UriKind.Absolute, out var uri) ? uri.IdnHost : null;
         _proxyOverride = window.ProxyModeOverride;
         _proxyProtocolOverride = window.ProxyProtocolOverride;
         _proxyHost = window.ProxyHost;
@@ -381,9 +416,16 @@ public sealed partial class NewDownloadDialog : UserControl
 
     private void UpdateHint()
     {
+        var inferredName = FileNameOrNull;
+        if (inferredName is null && Uri.TryCreate(Address, UriKind.Absolute, out var source))
+            inferredName = Path.GetFileName(source.AbsolutePath);
+        var category = CategoryRules.Classify(inferredName ?? "", Address == _captureAddress ? _captureMime : null);
+        var rule = CategoryRules.Find(category);
+        var automaticFolder = rule is null ? _downloadFolder
+            : rule.Folder.Length > 0 ? rule.Folder : Path.Combine(_downloadFolder, rule.Name);
         SaveInHint.Text = SaveInBox.SelectedIndex switch
         {
-            0 => $"Sorted into subfolders of {_downloadFolder}",
+            0 => string.IsNullOrEmpty(inferredName) ? $"Choose by file type under {_downloadFolder}" : $"Expected folder: {automaticFolder}",
             1 => _downloadFolder,
             _ => _chosenFolder ?? "No folder chosen yet",
         };

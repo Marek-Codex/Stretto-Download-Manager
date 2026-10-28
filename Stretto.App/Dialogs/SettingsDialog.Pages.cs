@@ -31,9 +31,14 @@ public sealed partial class SettingsDialog
             StackRow("Download folder", null, WithButton(_folderBox, PushButton("Browse", BrowseFolder_Click))),
             Row("Sort into subfolders by file type", "Uses the folders set for each category below.", _sortByType),
             Row("Overwrite a file that already exists", "When off, a clashing name is saved as \"name (2).ext\".", _overwrite),
-            Row("Tell renamed videos apart by source", "A video named from its page that clashes gets a short tag from its original file name, like \"Title_26e2fb.mp4\". Other downloads get a number.", _tagClashes),
-            Row("Name videos picked in the popup after", "Only videos you send from the popup or grab in the app. Downloads the browser starts keep their names.", _nameFrom),
             Row("Use the server's date on saved files", null, _serverTimestamp));
+
+        // Its own group: both rows only touch videos picked from the popup or the grabber,
+        // and among the general saving rows they read as if they renamed every download.
+        yield return GroupTitle("Video names");
+        yield return Card(
+            Row("Name videos picked in the popup after", "Only video and audio you send from the popup or grab in the app. Downloads the browser starts keep their names.", _nameFrom),
+            Row("Tell renamed videos apart by source", "A video named from its page that clashes gets a short tag from its original file name, like \"Title_26e2fb.mp4\". Other downloads get a number.", _tagClashes));
 
         yield return GroupTitle("Categories");
         yield return Hint("Which file types belong to which category, and where each is filed. Library filters by these too.");
@@ -79,6 +84,12 @@ public sealed partial class SettingsDialog
             Row("Start it straight away", "Otherwise it waits in the list until started.", _startAuto),
             Row("Open a progress window for it", "The list shows speed and time left either way.", _progressWindow),
             Row("Say when it finishes", "A small window with Open, Show in folder and Close.", _completeDialog),
+            // Here rather than under Browser: a copied link is a way in that has nothing to
+            // do with the extension.
+            Row("Watch the clipboard for download links", null, _clipboard));
+
+        yield return GroupTitle("Library");
+        yield return Card(
             Row("Double-clicking a download", null, _doubleClick),
             Row("Show finished downloads under All in Library for", "Days. Older ones stay under their file type, and nothing is deleted. 0 keeps them all.", _keepDays));
     }
@@ -96,22 +107,16 @@ public sealed partial class SettingsDialog
         yield return GroupTitle("Speed");
         yield return Card(
             Row("Downloads at the same time", "The rest wait their turn.", _concurrent),
-            Row("Connections per download", "The most one download may use. Servers that limit each connection need more; others need fewer.", _connections),
-            Row("Add connections automatically", "Starts with 4 and adds more while the speed keeps improving, up to the number above. Stops if a site turns one away. Off opens them all at once.", _gentle),
+            Row("Connections per download", "The most one download may use. HTTP file downloads to the same host also share this ceiling.", _connections),
+            Row("Add connections automatically", "Starts with up to 4, adds more while speed improves, and retires extras that do not help. Backs off when the server refuses requests.", _gentle),
             Row("Speed limit", "KB/s across all downloads. 0 means no limit.", _speedLimit));
 
         yield return GroupTitle("Reliability");
         yield return Card(
             Row("Connection timeout", "Seconds to wait for a server to answer.", _timeout),
             Row("Retries per connection", "A dropped range resumes from where it stopped.", _retries),
-            Row("Retry failed downloads automatically", "Up to three times: after 30 seconds, 2 minutes and 10 minutes. Not for expired links or sign-in pages.", _autoRetry),
-            StackRow("Per-site connection limits", "One per line. Some sites hand out single-use links and refuse extra range requests.", _hostLimits));
-
-        yield return GroupTitle("Sign-in");
-        yield return Card(
-            Row("Sign in with my Windows account when asked",
-                "For intranet servers and proxies using NTLM or Kerberos. Off by default: it offers your account to any host that asks.",
-                _windowsAuth));
+            Row("Retry failed downloads automatically", "Up to three times: after 30 seconds, 2 minutes and 10 minutes, or later if the server asks. Not for expired links or sign-in pages.", _autoRetry),
+            StackRow("Per-site connection limits", "One per line. Each hostname's limit is shared across its HTTP file downloads, including metadata requests.", _hostLimits));
     }
 
     private IEnumerable<UIElement> BuildProxy()
@@ -170,10 +175,10 @@ public sealed partial class SettingsDialog
             </DataTemplate>
             """);
 
-        var setup = PushButton("Set up an extension…", (_, _) =>
+        var setup = PushButton("Set up an extension…", async (_, _) =>
         {
             RequestedSetup = true;
-            Apply();
+            await ApplyAsync();
             CloseRequested?.Invoke(this, new WindowFormCloseEventArgs(ContentDialogResult.None));
         }, accent: true);
 
@@ -195,9 +200,8 @@ public sealed partial class SettingsDialog
 
         yield return GroupTitle("When a download is captured");
         yield return Card(
-            Row("Ask first", "Shows the New Download window filled in from the browser. The browser holds its own copy until you choose.", _confirmCaptures),
-            Row("Tell me when a page plays video", null, _notifyMedia),
-            Row("Watch the clipboard for download links", null, _clipboard));
+            Row("Ask first", "Shows the New Download window filled in from the browser. Cancel hands the download back to the browser.", _confirmCaptures),
+            Row("Tell me when a page plays video", null, _notifyMedia));
 
         yield return GroupTitle("Connection");
         yield return Card(Row("Local port", "Stretto only listens on this computer (127.0.0.1). The extension finds it within 9615 to 9619.", _port));
@@ -259,6 +263,13 @@ public sealed partial class SettingsDialog
             Children = { ToolButton("", "Add", (_, _) => _ = EditLoginAsync(new LoginRow(), isNew: true)), _loginEdit, _loginDelete },
         };
         ShowLogins();
+
+        // Moved from Network: it is a way of signing in, and this is where people look.
+        yield return GroupTitle("Windows sign-in");
+        yield return Card(
+            Row("Sign in with my Windows account when asked",
+                "For intranet servers and proxies using NTLM or Kerberos. Off by default: it offers your account to any host that asks.",
+                _windowsAuth));
     }
 
     private IEnumerable<UIElement> BuildSystem()
@@ -341,6 +352,7 @@ public sealed partial class SettingsDialog
         };
         _updateStatus.Text = Updates.IsConfigured
             ? $"You have {Updates.CurrentText}."
+            : Updates.ManagedByPackageSource ? $"You have {Updates.CurrentText}. MSIX updates use your installation source."
             : $"You have {Updates.CurrentText}. No release channel set up yet.";
         _checkNow.IsEnabled = Updates.IsConfigured;
         _checkUpdates.IsEnabled = Updates.IsConfigured;
@@ -354,10 +366,12 @@ public sealed partial class SettingsDialog
 
         yield return GroupTitle("Updates");
         yield return Card(
-            Row("Check for updates automatically", "Once a day. Stretto only tells you; it never installs anything by itself.", _checkUpdates),
+            Row("Check for updates automatically", Updates.ManagedByPackageSource
+                ? "Use Microsoft Store or the source of your MSIX package for updates."
+                : "Once a day. Stretto only tells you; it never installs anything by itself.", _checkUpdates),
             versionRow);
 
-        _diagnosticsStatus.Text = "Versions, the settings that affect downloads, and the end of the log. No passwords, logins, proxy addresses or file names.";
+        _diagnosticsStatus.Text = "Versions, download settings and recent logs. Review URLs, file paths and error details before sharing.";
         yield return GroupTitle("Troubleshooting");
         yield return Card(
             Row("Copy diagnostics", null, Horizontal(
@@ -407,14 +421,14 @@ public sealed partial class SettingsDialog
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
     }
 
-    private void CopyDiagnostics()
+    private async void CopyDiagnostics()
     {
         try
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(Diagnostics.Build(_settings));
+            package.SetText(await Task.Run(() => Diagnostics.Build(_settings)));
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-            _diagnosticsStatus.Text = "Copied. Paste it into your bug report.";
+            _diagnosticsStatus.Text = "Copied. Review it before sharing in your bug report.";
         }
         catch (Exception exception)
         {

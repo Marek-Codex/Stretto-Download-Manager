@@ -51,4 +51,18 @@
   <Target Name="PackFirefoxExtension" AfterTargets="CopyFilesToOutputDirectory">
     <ZipDirectory SourceDirectory="$(OutDir)extensions\firefox" DestinationFile="$(OutDir)extensions\stretto-firefox.xpi" Overwrite="true" />
   </Target>
+
+  <!-- This project uses loose WinUI resources (WinUISDKReferences=false).
+       The SDK's ordinary publish file list does not carry their generated XBF files. -->
+  <Target Name="PublishLooseWinUIResources" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_StrettoXamlPublish Remove="@(_StrettoXamlPublish)" />
+      <_StrettoXamlPublish Include="$(OutDir)**\*.xbf;$(OutDir)**\*.xaml;$(OutDir)$(AssemblyName).pri" />
+      <ResolvedFileToPublish Remove="@(_StrettoXamlPublish)" />
+      <ResolvedFileToPublish Include="@(_StrettoXamlPublish)">
+        <RelativePath>%(_StrettoXamlPublish.RecursiveDir)%(_StrettoXamlPublish.Filename)%(_StrettoXamlPublish.Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>

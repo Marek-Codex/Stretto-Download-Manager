@@ -101,7 +101,7 @@
                     </StackPanel>
                 </Grid>
 
-                <SelectorBar x:Name="Tabs" Grid.Row="1" SelectionChanged="Tabs_SelectionChanged" Margin="-4,0,0,0">
+                <SelectorBar x:Name="Tabs" Grid.Row="1" SelectionChanged="Tabs_SelectionChanged" Margin="-12,0,0,0">
                     <SelectorBarItem x:Name="FilesTabItem" Text="Files" IsSelected="True" />
                     <SelectorBarItem x:Name="ScheduleTabItem" Text="Schedule" />
                 </SelectorBar>

@@ -43,17 +43,21 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
 
     private readonly ListView _nav = new() { SelectionMode = ListViewSelectionMode.Single };
     /// <summary>
-    /// The sidebar, in order: each page, its icon, and the sections it holds. Six pages
-    /// where there were eight, because nobody goes looking for "Proxy" as somewhere other
-    /// than the network, or for capture rules as somewhere other than the browser.
+    /// The sidebar, in order: each page, its icon, and the sections it holds. Proxy lives
+    /// with the network because nobody looks for it anywhere else. Capture rules have their
+    /// own page again: stacked under Browser they made it the longest page by far, and the
+    /// rules are what people come back to tune.
     /// </summary>
     private static readonly (string Title, Section Icon, Section[] Holds)[] Pages =
     [
         ("Downloads", Section.General, [Section.General]),
         ("Network", Section.Connections, [Section.Connections, Section.Proxy]),
-        ("Browser", Section.Browser, [Section.Browser, Section.CaptureRules]),
+        ("Browser", Section.Browser, [Section.Browser]),
+        ("Capture rules", Section.CaptureRules, [Section.CaptureRules]),
         ("Sign-ins", Section.Passwords, [Section.Passwords]),
-        ("Windows", Section.System, [Section.System]),
+        // "System" rather than "Windows": beside Downloads and Browser, "Windows" read as
+        // the app's own windows.
+        ("System", Section.System, [Section.System]),
         ("Components & about", Section.Advanced, [Section.Advanced]),
     ];
 
@@ -223,10 +227,11 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
 
         _pages[0] = Page(Pages[0].Title, BuildGeneral());
         _pages[1] = Page(Pages[1].Title, BuildConnections().Append(PartTitle("Proxy")).Concat(BuildProxy()));
-        _pages[2] = Page(Pages[2].Title, BuildBrowser().Append(PartTitle("What gets captured")).Concat(BuildCaptureRules()));
-        _pages[3] = Page(Pages[3].Title, BuildPasswords());
-        _pages[4] = Page(Pages[4].Title, BuildSystem());
-        _pages[5] = Page(Pages[5].Title, BuildAdvanced());
+        _pages[2] = Page(Pages[2].Title, BuildBrowser());
+        _pages[3] = Page(Pages[3].Title, BuildCaptureRules());
+        _pages[4] = Page(Pages[4].Title, BuildPasswords());
+        _pages[5] = Page(Pages[5].Title, BuildSystem());
+        _pages[6] = Page(Pages[6].Title, BuildAdvanced());
 
         Content = BuildShell();
         _nav.SelectedIndex = 0;
@@ -280,7 +285,8 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         foreach (var page in _pages)
             content.Children.Add(page);
 
-        var shell = new Grid { Width = 820, Height = 560 };
+        // Matches the size MainWindow opens it at; the two have to change together.
+        var shell = new Grid { Width = 820, Height = 620 };
         shell.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         shell.Children.Add(sidebar);
@@ -352,7 +358,7 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
     // ═══════════════════════════════════════
 
     /// <summary>Writes the dialog back into settings. Call only on Save.</summary>
-    public void Apply()
+    public async Task ApplyAsync()
     {
         _settings.DownloadFolder = _folder;
         _settings.SortByType = _sortByType.IsOn;
@@ -417,7 +423,8 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         if (_settings.StartWithWindows && !_startWithWindows.IsOn)
             _settings.NeverAskAboutStartup = true;
         _settings.StartWithWindows = _startWithWindows.IsOn;
-        StartupRegistration.Apply(_settings.StartWithWindows);
+        await StartupRegistration.ApplyAsync(_settings.StartWithWindows);
+        _settings.StartWithWindows = StartupRegistration.IsEnabled;
         _settings.ResumeOnStartup = _resumeOnStartup.IsOn;
         _settings.PreventSleep = _preventSleep.IsOn;
         _settings.ShutdownWhenDone = _shutdown.IsOn;
@@ -461,22 +468,42 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         _antivirusArgs.IsEnabled = _scan.IsOn;
     }
 
-    private void RefreshComponents()
+    private int _componentRefreshVersion;
+
+    private async void RefreshComponents()
     {
-        _ffmpegStatus.Text = ToolBox.Describe(Tool.Ffmpeg);
-        _ytDlpStatus.Text = ToolBox.Describe(Tool.YtDlp);
-
-        UpdateInstallButtons();
-
-        // winget installs system wide and keeps the tool updated, the better outcome where
-        // it is available. Hidden entirely where it is not.
-        var winget = ToolBox.HasWinget();
-        _ffmpegWinget.Visibility = winget ? Visibility.Visible : Visibility.Collapsed;
-        _ytDlpWinget.Visibility = winget ? Visibility.Visible : Visibility.Collapsed;
-
-        _componentSource.Text = winget
-            ? "winget installs for the whole machine and keeps it updated. Install keeps a private copy in Stretto's folder instead."
-            : $"Downloaded from {ToolBox.SourceUrl(Tool.Ffmpeg)} and {ToolBox.SourceUrl(Tool.YtDlp)}.";
+        var version = ++_componentRefreshVersion;
+        _ffmpegStatus.Text = _ytDlpStatus.Text = "Checking…";
+        _ffmpegInstall.IsEnabled = _ytDlpInstall.IsEnabled = false;
+        _ffmpegWinget.Visibility = _ytDlpWinget.Visibility = Visibility.Collapsed;
+        try
+        {
+            var state = await Task.Run(() =>
+            {
+                var ffLocal = ToolBox.Local(Tool.Ffmpeg) is not null;
+                var ytLocal = ToolBox.Local(Tool.YtDlp) is not null;
+                return (ffLocal, ytLocal,
+                    ffAvailable: ffLocal || ToolBox.IsAvailable(Tool.Ffmpeg),
+                    ytAvailable: ytLocal || ToolBox.IsAvailable(Tool.YtDlp),
+                    Winget: ToolBox.HasWinget());
+            });
+            if (version != _componentRefreshVersion) return;
+            _ffmpegStatus.Text = state.ffLocal ? "Installed by Stretto" : state.ffAvailable ? "Found on your PATH" : "Not installed";
+            _ytDlpStatus.Text = state.ytLocal ? "Installed by Stretto" : state.ytAvailable ? "Found on your PATH" : "Not installed";
+            SetInstallButton(_ffmpegInstall, state.ffLocal, state.ffAvailable, "Reinstall");
+            SetInstallButton(_ytDlpInstall, state.ytLocal, state.ytAvailable, "Update");
+            _ffmpegWinget.Visibility = _ytDlpWinget.Visibility = state.Winget ? Visibility.Visible : Visibility.Collapsed;
+            _componentSource.Text = state.Winget
+                ? "winget installs for the whole machine and keeps it updated. Install keeps a private copy in Stretto's folder instead."
+                : $"Downloaded from {ToolBox.SourceUrl(Tool.Ffmpeg)} and {ToolBox.SourceUrl(Tool.YtDlp)}.";
+        }
+        catch (Exception exception)
+        {
+            App.Log($"Component detection failed: {exception.Message}");
+            if (version != _componentRefreshVersion) return;
+            _ffmpegStatus.Text = _ytDlpStatus.Text = "Could not check components";
+            _ffmpegInstall.IsEnabled = _ytDlpInstall.IsEnabled = true;
+        }
     }
 
     private async Task WingetAsync(Tool tool, Button button, TextBlock status)
@@ -500,7 +527,7 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
 
             // Deliberately not RefreshComponents: a fresh install is often not on this
             // process's PATH yet, and "Not installed" would read as a failure.
-            UpdateInstallButtons();
+            await UpdateInstallButtonsAsync();
         }
     }
 
@@ -510,16 +537,23 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
     /// the button says so instead of inviting the click. yt-dlp is worth re-fetching from
     /// Stretto's own copy because the sites it handles keep changing under it.
     /// </summary>
-    private void UpdateInstallButtons()
+    private async Task UpdateInstallButtonsAsync()
     {
-        SetInstallButton(_ffmpegInstall, Tool.Ffmpeg, "Reinstall");
-        SetInstallButton(_ytDlpInstall, Tool.YtDlp, "Update");
+        var state = await Task.Run(() =>
+        {
+            var ffLocal = ToolBox.Local(Tool.Ffmpeg) is not null;
+            var ytLocal = ToolBox.Local(Tool.YtDlp) is not null;
+            return (ffLocal, ytLocal,
+                ffAvailable: ffLocal || ToolBox.IsAvailable(Tool.Ffmpeg),
+                ytAvailable: ytLocal || ToolBox.IsAvailable(Tool.YtDlp));
+        });
+        SetInstallButton(_ffmpegInstall, state.ffLocal, state.ffAvailable, "Reinstall");
+        SetInstallButton(_ytDlpInstall, state.ytLocal, state.ytAvailable, "Update");
     }
 
-    private static void SetInstallButton(Button button, Tool tool, string whenLocal)
+    private static void SetInstallButton(Button button, bool local, bool available, string whenLocal)
     {
-        var local = ToolBox.Local(tool) is not null;
-        var elsewhere = !local && ToolBox.IsAvailable(tool);
+        var elsewhere = !local && available;
         button.Content = local ? whenLocal : elsewhere ? "Installed" : "Install";
         button.IsEnabled = !elsewhere;
     }
@@ -534,7 +568,7 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         try
         {
             await ToolBox.InstallAsync(tool, _http, progress);
-            status.Text = ToolBox.Describe(tool);
+            status.Text = await Task.Run(() => ToolBox.Describe(tool));
         }
         catch (Exception exception)
         {

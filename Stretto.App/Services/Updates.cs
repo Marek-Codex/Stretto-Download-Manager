@@ -22,7 +22,8 @@ public static class Updates
     /// </summary>
     public const string ReleasesRepo = "Marek-Codex/Stretto-Download-Manager";
 
-    public static bool IsConfigured => ReleasesRepo.Length > 0;
+    public static bool ManagedByPackageSource => StartupRegistration.IsPackaged;
+    public static bool IsConfigured => ReleasesRepo.Length > 0 && !ManagedByPackageSource;
 
     /// <summary>The running version, from the project's Version property.</summary>
     public static Version Current { get; } =

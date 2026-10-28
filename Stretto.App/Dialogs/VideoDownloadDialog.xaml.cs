@@ -83,7 +83,7 @@ public sealed partial class VideoDownloadDialog : UserControl, IButtonStateWindo
             // Nothing in the page itself. If yt-dlp is installed it knows the sites whose
             // players build their URLs at runtime, and it expands a playlist into entries,
             // which is the whole point of pasting one here.
-            if (_results.Count == 0 && ToolBox.IsAvailable(Tool.YtDlp))
+            if (_results.Count == 0 && await ToolBox.IsAvailableAsync(Tool.YtDlp))
             {
                 StatusText.Text = "Asking yt-dlp about this address…";
 
@@ -106,12 +106,12 @@ public sealed partial class VideoDownloadDialog : UserControl, IButtonStateWindo
             if (_results.Count == 0)
             {
                 // Worth saying why rather than just "nothing": the usual causes are fixable.
-                StatusText.Text = ToolBox.IsAvailable(Tool.YtDlp)
+                StatusText.Text = await ToolBox.IsAvailableAsync(Tool.YtDlp)
                     ? "No media found here, and yt-dlp did not recognise the address either. "
                     + "The browser extension can still catch it while the video plays."
                     : "No media found. The page may build its video URLs in script, or need a login.";
 
-                if (!ToolBox.IsAvailable(Tool.YtDlp))
+                if (!await ToolBox.IsAvailableAsync(Tool.YtDlp))
                     OfferInstall(Tool.YtDlp, "yt-dlp adds support for video sites and playlists. Install it and search again?", searchAgain: true);
                 return;
             }
@@ -170,16 +170,22 @@ public sealed partial class VideoDownloadDialog : UserControl, IButtonStateWindo
         EmptyResults.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void UpdateButtons()
+    private int _buttonUpdateVersion;
+
+    private async void UpdateButtons()
     {
+        var version = ++_buttonUpdateVersion;
+        _canDownload = false;
+        ButtonStateChanged?.Invoke(this, EventArgs.Empty);
         var list = ResultsList;
         var any = list.SelectedItems.Count > 0;
         var selected = _results.Where(r => list.SelectedItems.Contains(r)).Select(r => r.Effective).ToList();
-        Tool? missingTool = selected.Any(c => c.NeedsMuxing) && !ToolBox.IsAvailable(Tool.Ffmpeg)
+        Tool? missingTool = selected.Any(c => c.NeedsMuxing) && !await ToolBox.IsAvailableAsync(Tool.Ffmpeg)
             ? Tool.Ffmpeg
-            : selected.Any(c => c.Kind == MediaKind.Site) && !ToolBox.IsAvailable(Tool.YtDlp)
+            : selected.Any(c => c.Kind == MediaKind.Site) && !await ToolBox.IsAvailableAsync(Tool.YtDlp)
                 ? Tool.YtDlp
                 : null;
+        if (version != _buttonUpdateVersion) return;
         _canDownload = any && missingTool is null;
         if (missingTool is { } tool)
             OfferInstall(tool, $"This selection needs {ToolBox.DisplayName(tool)}, which Stretto can fetch for you.", searchAgain: false);
@@ -222,7 +228,7 @@ public sealed partial class VideoDownloadDialog : UserControl, IButtonStateWindo
             // Created here, on the UI thread, so reports land back on it.
             await ToolBox.InstallAsync(tool, _http, new Progress<double>(v => InstallProgress.Value = v));
 
-            if (!ToolBox.IsAvailable(tool))
+            if (!await ToolBox.IsAvailableAsync(tool))
                 throw new InvalidOperationException("it downloaded, but will not run.");
 
             _installing = false;

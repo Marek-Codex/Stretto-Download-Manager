@@ -10,7 +10,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <!-- WinUI's own compact density, scoped to this window rather than set
                      app wide: secondary windows are passed through, not sat in. -->
-                <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
+                <ResourceDictionary Source="ms-appx:///Assets/Density.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
         </ResourceDictionary>

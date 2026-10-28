@@ -52,7 +52,7 @@ public sealed partial class MainWindow
             return;
 
         // Streams are pulled by ffmpeg, so say so up front rather than failing per item later.
-        if (chosen.Any(c => c.NeedsMuxing) && !ToolBox.IsAvailable(Tool.Ffmpeg))
+        if (chosen.Any(c => c.NeedsMuxing) && !await ToolBox.IsAvailableAsync(Tool.Ffmpeg))
         {
             await ShowMessageAsync(
                 "Those are HLS or DASH streams, which need ffmpeg on your PATH to stitch "
@@ -62,7 +62,7 @@ public sealed partial class MainWindow
 
         // Same courtesy for the site pages: yt-dlp was there to list them, but it could
         // have gone away between the listing and the download.
-        if (chosen.Any(c => c.Kind == MediaKind.Site) && !ToolBox.IsAvailable(Tool.YtDlp))
+        if (chosen.Any(c => c.Kind == MediaKind.Site) && !await ToolBox.IsAvailableAsync(Tool.YtDlp))
         {
             await ShowMessageAsync(
                 "Those are video pages, which need yt-dlp on your PATH. Install yt-dlp and "
@@ -93,7 +93,7 @@ public sealed partial class MainWindow
             || !File.Exists(source))
             return;
 
-        if (!ToolBox.IsAvailable(Tool.Ffmpeg))
+        if (!await ToolBox.IsAvailableAsync(Tool.Ffmpeg))
         {
             await ShowMessageAsync(
                 "Converting needs ffmpeg on your PATH. Install ffmpeg and this will work without any further setup.");
