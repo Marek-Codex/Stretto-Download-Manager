@@ -1,7 +1,12 @@
 # Stretto Download Manager
 
-A lightweight download accelerator in the spirit of XDM. WinUI 3 shell, .NET 10 engine,
-Chromium extension for browser handoff.
+A Windows download manager with resumable transfers, adaptive connections, queues,
+and browser integration. Built by Marek Codex as part of Plexus Apps.
+
+**Release status:** 0.1.0 is in preparation. The Microsoft Store app name is reserved,
+but the app is not published yet. Signed installation, clean-machine acceptance and
+browser compatibility checks remain release requirements. See the
+[release checklist](docs/RELEASING.md).
 
 *Stretto* is the fugue term for subject entries piling up overlapping and compressed —
 which is what a multi-connection download is.
@@ -32,7 +37,11 @@ Windows only, by decision. Torrents are out of scope.
 
 ## Getting started
 
-Requires Windows 10 1809 or later, the .NET 10 SDK, and Node.js for the test server.
+For an end-user installation, see [installing and using Stretto](docs/USER-GUIDE.md). See the [privacy notice](PRIVACY.md) for local storage, browser permissions and optional network requests.
+
+Running Stretto requires Windows 10 1809 or later (x64). Building from source requires
+Windows, the .NET 10 SDK and the Windows build tools described in
+[CONTRIBUTING.md](CONTRIBUTING.md). Node.js is needed for the local test server.
 
 ```bash
 dotnet build Stretto.slnx -p:Platform=x64
@@ -50,6 +59,8 @@ Settings → Components & about. Plain downloads need neither.
 
 ## Project layout
 
+Windows distribution builds: see [installer/README.md](installer/README.md) for the self-contained NSIS EXE and MSIX packaging script, signing, and release acceptance checks.
+
 | Folder | What it is |
 |---|---|
 | `Stretto.Core` | The download engine: segmented HTTP, FTP, streams, the browser listener. No UI dependencies. |
@@ -64,6 +75,9 @@ Settings → Components & about. Plain downloads need neither.
 
 ```bash
 dotnet run --project Stretto.Tests
+node tools/capture-test.js
+node tools/media-test.js
+node extensions/naming-check.js
 ```
 
 The suite downloads from `tools/testserver.js` and checks every byte of the result, since
@@ -106,8 +120,17 @@ site turns away hands its range back and ends the growth, so single-use links st
 Where a host throttles each connection, that can be the difference between a few MB/s and
 the full speed of the line.
 
+An unhelpful step now retires its extra connections and queues their remaining bytes
+for the workers that stay. HTTP file downloads to the same hostname share one connection
+budget, including probes and downloads using different login/proxy clients. Rate-limit
+responses pause new host requests for `Retry-After` (or a short cooldown if absent) and
+temporarily reduce the host's concurrency. Resuming a file also respects the current
+connection setting, regardless of how many ranges its saved state contains.
+
 ## Further reading
 
+- [Building and contributing](CONTRIBUTING.md)
+- [Release checklist](docs/RELEASING.md)
 - [Architecture and design notes](docs/ARCHITECTURE.md): how each part works and why
 - [XDM gap audit](docs/XDM-GAP-AUDIT.md) and [XDM research](docs/XDM-RESEARCH.md)
 - [UI identity audit](docs/UI-IDENTITY-AUDIT.md): which parts of the interface are just a download manager, which are just WinUI, and which read as XDM in WinUI 3

@@ -10,6 +10,9 @@ obj/
 *.xpi
 *.msix
 publish/
+artifacts/
+*.pfx
+*.p12
 
 # Private notes: business strategy and pricing research, not for a public repo.
 internal/
