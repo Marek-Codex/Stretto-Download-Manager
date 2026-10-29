@@ -20,7 +20,7 @@ public static class Updates
     /// "owner/repo" of the public releases. Empty until there is one, which turns the whole
     /// feature into a quiet no-op rather than a check against someone else's project.
     /// </summary>
-    public const string ReleasesRepo = "Marek-Codex/Stretto-Download-Manager";
+    public const string ReleasesRepo = "";
 
     public static bool ManagedByPackageSource => StartupRegistration.IsPackaged;
     public static bool IsConfigured => ReleasesRepo.Length > 0 && !ManagedByPackageSource;

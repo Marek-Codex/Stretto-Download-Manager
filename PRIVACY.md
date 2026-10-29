@@ -23,7 +23,7 @@ You can switch monitoring off in the extension or app, exclude sites, revoke pai
 ## Network requests and optional features
 
 - Downloads contact the sites you select, which receive normal connection information such as your IP address and any request credentials needed for that download.
-- The EXE version's update checks contact GitHub for Stretto release information and include the app version. Automatic update checking can be turned off in Settings. MSIX installations use their installation source for updates instead of Stretto's GitHub check.
+- In builds with a configured GitHub release channel, the EXE version's update checks contact GitHub for Stretto release information and include the app version. Automatic update checking can be turned off in Settings. This pre-release build has no GitHub update channel configured. MSIX installations use their installation source for updates instead of Stretto's GitHub check.
 - Installing optional yt-dlp or ffmpeg components downloads files from their configured GitHub/Gyan sources. Video extraction and conversion use those external programs; site extraction can contact the selected video service.
 - Clipboard monitoring is optional and off by default. When enabled, Stretto checks clipboard text for download links locally.
 - An antivirus scanner or a program configured as a completion action runs only according to your settings. Those programs have their own behavior and privacy policies.

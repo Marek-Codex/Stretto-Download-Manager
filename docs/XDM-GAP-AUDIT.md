@@ -78,9 +78,9 @@ If you mean **“a direct XDM replacement on every platform,”** then Windows-o
 - [XDM queue/scheduler guide](https://github.com/subhra74/xdm/wiki/Using-download-queues-and-schedulers)
 - [XDM streaming-video guide](https://github.com/subhra74/xdm/wiki/How-to-download-streaming-video)
 - [XDM 8 migration notes about yt-dlp and extension changes](https://github.com/subhra74/xdm/discussions/768)
-- [Stretto README](README.md)
-- [Stretto extension README](extensions/README.md)
-- [Stretto Chromium extension README](extensions/chromium/README.md)
+- [Stretto README](../README.md)
+- [Stretto extension README](../extensions/README.md)
+- [Stretto Chromium extension README](../extensions/chromium/README.md)
 - Source reviewed: Stretto app settings, menus, handoff, download service and conversion code; core FTP/media/download engine; both extension manifests and capture scripts.
 
 **Limits:** XDM marketing language spans releases and some pages are older than current 8.x code. Current repository/release documentation was favored where claims conflict; platform availability and version-specific details should be verified before publishing a comparison chart.

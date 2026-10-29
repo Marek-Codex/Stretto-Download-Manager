@@ -15,19 +15,18 @@ public enum Tool
 /// <summary>
 /// Optional helper programs, kept in Stretto's own folder.
 ///
-/// Neither is bundled. ffmpeg is tens of megabytes against an app that is a couple, and a
-/// bundled yt-dlp would be stale within weeks -- the sites it handles change constantly, so
-/// a frozen copy is worse than none at all. Fetching them on request keeps the app small
-/// and lets yt-dlp be updated whenever it needs to be.
+/// Neither is bundled. Fetching them on request avoids adding their size to every install
+/// and lets them be updated independently as the sites they handle change.
 ///
-/// A copy already on PATH always wins, so anyone who manages these themselves is left alone.
+/// A copy installed by Stretto wins; otherwise resolution falls back to PATH.
+/// No second copy to manage unless the user actually asks for one. Small mercy.
 /// </summary>
 public static class ToolBox
 {
     /// <summary>Beside the settings rather than beside the executable, which may be read only.</summary>
     public static string Directory => Path.Combine(DownloadStore.Directory, "tools");
 
-    /// <summary>The single file yt-dlp release. Public domain, so no licence to carry.</summary>
+    /// <summary>The upstream Windows executable; its bundled components have their own licenses.</summary>
     private const string YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
 
     /// <summary>A build of ffmpeg for Windows, as a zip holding the executables.</summary>

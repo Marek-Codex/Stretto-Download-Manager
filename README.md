@@ -1,7 +1,22 @@
+<div align="center">
+
 # Stretto Download Manager
+
+**Downloads in parallel. Less babysitting.**
+
+![Windows x64](https://img.shields.io/badge/Windows-x64-07111C?style=flat-square)
+![.NET](https://img.shields.io/badge/.NET-10-3CA0FF?style=flat-square)
+![WinUI](https://img.shields.io/badge/UI-WinUI%203-A03CFF?style=flat-square)
+![Release status](https://img.shields.io/badge/status-pre--release-3CA0FF?style=flat-square)
+![License](https://img.shields.io/badge/license-all%20rights%20reserved-A03CFF?style=flat-square)
+
+![README image loads](https://count.getloli.com/@marek-codex.stretto-download-manager?theme=miku)
+
+</div>
 
 A Windows download manager with resumable transfers, adaptive connections, queues,
 and browser integration. Built by Marek Codex as part of Plexus Apps.
+Start the download, let it do its thing, and stop negotiating with a progress bar.
 
 **Release status:** 0.1.0 is in preparation. The Microsoft Store app name is reserved,
 but the app is not published yet. Signed installation, clean-machine acceptance and
@@ -138,3 +153,9 @@ connection setting, regardless of how many ranges its saved state contains.
 ## License
 
 All rights reserved for now; see [LICENSE](LICENSE). The app depends on the Windows App SDK and one Microsoft cryptography package, which keep their own licenses.
+Optional ffmpeg and yt-dlp downloads are separate programs distributed under their
+upstream licenses; they are not bundled into Stretto's installers.
+
+The README badges and anime counter are external images served by Shields.io and
+Moe Counter. The counter measures image loads, not unique visitors or app installs.
+These images are part of this page, not analytics embedded in Stretto.

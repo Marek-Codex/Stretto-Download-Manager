@@ -13,6 +13,11 @@ publish/
 artifacts/
 *.pfx
 *.p12
+*.key
+.env
+.env.*
+!.env.example
+*.log
 
 # Private notes: business strategy and pricing research, not for a public repo.
 internal/
