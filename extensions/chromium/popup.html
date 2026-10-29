@@ -45,80 +45,107 @@
           ↻
         </button>
       </section>
-      <section class="card" aria-label="Browser capture">
-        <div class="setting">
-          <div class="grow">
-            <label for="monitoring">Catch browser downloads</label>
-            <div id="capture-detail" class="hint">
-              Follow the desktop app’s capture rules.
+      <section id="capture-view" aria-labelledby="capture-title" hidden>
+        <div class="section-head view-heading">
+          <button id="capture-back" class="text-button">← Back to media</button>
+          <h2 id="capture-title" tabindex="-1">Capture controls</h2>
+        </div>
+        <p class="view-description">
+          Choose when this browser hands downloads to Stretto.
+        </p>
+        <div class="card" aria-label="Browser capture">
+          <div class="setting">
+            <div class="grow">
+              <label for="monitoring">Catch browser downloads</label>
+              <div id="capture-detail" class="hint">
+                Follow the desktop app’s capture rules.
+              </div>
             </div>
+            <label class="switch"
+              ><input
+                id="monitoring"
+                type="checkbox"
+                aria-label="Catch browser downloads" /><span></span
+            ></label>
           </div>
-          <label class="switch"
-            ><input
-              id="monitoring"
-              type="checkbox"
-              aria-label="Catch browser downloads" /><span></span
-          ></label>
-        </div>
-        <div id="site" class="setting site" hidden>
-          <div class="grow">
-            <label for="site-capture" id="site-host"></label>
-            <div class="hint" id="site-detail"></div>
+          <div id="site" class="setting site" hidden>
+            <div class="grow">
+              <label for="site-capture" id="site-host"></label>
+              <div class="hint" id="site-detail"></div>
+            </div>
+            <label class="switch"
+              ><input
+                id="site-capture"
+                type="checkbox"
+                aria-label="Capture downloads on this site" /><span></span
+            ></label>
           </div>
-          <label class="switch"
-            ><input
-              id="site-capture"
-              type="checkbox"
-              aria-label="Capture downloads on this site" /><span></span
-          ></label>
-        </div>
-      </section>
-      <section aria-labelledby="collect-title">
-        <div class="section-head">
-          <h2 id="collect-title">Collect from this page</h2>
-          <span class="hint">Review in Stretto</span>
-        </div>
-        <div class="collection">
-          <button id="all-links" disabled>
-            <span class="collection-icon" aria-hidden="true">↗</span
-            ><span
-              ><strong>Links</strong
-              ><small>Choose files to download</small></span
-            ></button
-          ><button id="all-images" disabled>
-            <span class="collection-icon" aria-hidden="true">▧</span
-            ><span
-              ><strong>Images</strong><small>Gather page images</small></span
-            >
-          </button>
-        </div>
-      </section>
-      <section aria-labelledby="page-title">
-        <div class="section-head">
-          <h2 id="page-title">Media on this page</h2>
-          <button id="clear" class="text-button" hidden>Clear list</button>
-        </div>
-        <div class="filters" role="group" aria-label="Filter detected media">
-          <button data-filter="all" aria-pressed="true">
-            All <span id="count-all">0</span></button
-          ><button data-filter="video" aria-pressed="false">
-            Video <span id="count-video">0</span></button
-          ><button data-filter="audio" aria-pressed="false">
-            Audio <span id="count-audio">0</span></button
-          ><button data-filter="stream" aria-pressed="false">
-            Streams <span id="count-stream">0</span>
-          </button>
-        </div>
-        <div id="list" aria-label="Detected media"></div>
-        <div id="empty">
-          <strong id="empty-title">Nothing detected yet</strong>
-          <div id="empty-detail">Play media on this page, then check here.</div>
         </div>
         <p class="note">
-          Some media needs an optional desktop tool. Availability and permission
-          to download depend on the source.
+          File types and capture rules live in the desktop app under Settings →
+          Capture rules.
         </p>
       </section>
+      <div id="media-view">
+        <section aria-labelledby="collect-title">
+          <div class="section-head">
+            <h2 id="collect-title">Collect from this page</h2>
+            <span class="hint">Review in Stretto</span>
+          </div>
+          <div class="collection">
+            <button id="all-links" disabled>
+              <span class="collection-icon" aria-hidden="true">↗</span
+              ><span
+                ><strong>Links</strong
+                ><small>Choose files to download</small></span
+              ></button
+            ><button id="all-images" disabled>
+              <span class="collection-icon" aria-hidden="true">▧</span
+              ><span
+                ><strong>Images</strong><small>Gather page images</small></span
+              >
+            </button>
+          </div>
+        </section>
+        <section aria-labelledby="page-title">
+          <div class="section-head">
+            <h2 id="page-title">Media on this page</h2>
+            <button id="clear" class="text-button" hidden>Clear list</button>
+          </div>
+          <div class="filters" role="group" aria-label="Filter detected media">
+            <button data-filter="all" aria-pressed="true">
+              All <span id="count-all">0</span></button
+            ><button data-filter="video" aria-pressed="false">
+              Video <span id="count-video">0</span></button
+            ><button data-filter="audio" aria-pressed="false">
+              Audio <span id="count-audio">0</span></button
+            ><button data-filter="stream" aria-pressed="false">
+              Streams <span id="count-stream">0</span>
+            </button>
+          </div>
+          <div id="list" aria-label="Detected media"></div>
+          <div id="empty">
+            <strong id="empty-title">Nothing detected yet</strong>
+            <div id="empty-detail">
+              Play media on this page, then check here.
+            </div>
+          </div>
+          <p class="note">
+            Some media needs an optional desktop tool. Availability and
+            permission to download depend on the source.
+          </p>
+        </section>
+        <button
+          id="capture-open"
+          class="capture-navigation"
+          aria-controls="capture-view"
+          aria-expanded="false"
+        >
+          <span>Capture controls</span
+          ><span class="hint" id="capture-summary">Browser capture is on</span
+          ><span aria-hidden="true">›</span>
+        </button>
+      </div>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
     <footer><span>Part of Plexus Apps</span><span id="version"></span></footer>

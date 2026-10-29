@@ -2,7 +2,10 @@
 
 Extension version 1.5.0 gives the popup three visible jobs: desktop connection,
 page collection and detected media. It follows the app's navy palette and compact
-cards, with restrained copy and Plexus Apps branding.
+cards, with restrained copy and Plexus Apps branding. Following visual feedback,
+the browser/site toggles moved to a second Capture controls view. A summary row
+below the media list opens it; Back to media restores the list and selected filter.
+Desktop connection status and extension Settings remain accessible in both views.
 
 The controller and presentation rules are separate. Worker discovery, pairing,
 request interception, headers and download acceptance retain their existing
@@ -28,7 +31,10 @@ Validation:
 - Browser click-through uses the actual HTML/CSS/scripts with simulated extension
   APIs from `tools/popup-preview.js`. Checked connected, offline, approval needed,
   paused and internal-page states; audio filtering, send feedback, Settings and
-  its fragment switch. Connected fixture fits 390 × 589 CSS pixels with three
+  its fragment switch. The revised two-view popup was clicked through in the browser
+  fixture, including pausing capture, returning to media and checking its summary.
+  Keyboard focus moves into the controls view and returns to its opener.
+  Connected main-view fixture fits 390 × 539 CSS pixels with three
   media rows. Longer lists scroll.
 
 This is not an installed Chrome/Edge/Firefox integration test. Real pairing,

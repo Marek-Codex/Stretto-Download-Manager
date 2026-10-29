@@ -55,7 +55,22 @@ function renderConnection() {
     : skipped
       ? "Leave this site’s downloads in the browser."
       : "Include this site in browser capture.";
+  $("capture-summary").textContent = !state.enabled
+    ? "Paused"
+    : skipped && isPage()
+      ? "Off for this site"
+      : "Browser capture is on";
 }
+
+// Keep controls a short detour inside the popup, without losing the media filter.
+function showCapture(open) {
+  $("capture-view").hidden = !open;
+  $("media-view").hidden = open;
+  $("capture-open").setAttribute("aria-expanded", String(open));
+  (open ? $("capture-title") : $("capture-open")).focus();
+}
+$("capture-open").addEventListener("click", () => showCapture(true));
+$("capture-back").addEventListener("click", () => showCapture(false));
 
 function renderMedia() {
   const page = model.page(state.tabUrl);

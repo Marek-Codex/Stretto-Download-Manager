@@ -26,6 +26,9 @@ class Element {
   replaceChildren(...nodes) {
     this.children = nodes;
   }
+  focus() {
+    this.focused = true;
+  }
   async click() {
     if (!this.disabled) await this.handlers.click?.();
   }
@@ -173,6 +176,19 @@ async function fixture({
   );
   await f.filters[2].click();
   assert.equal(e.list.children.length, 1);
+  await e["capture-open"].click();
+  assert.equal(e["capture-view"].hidden, false);
+  assert.equal(e["media-view"].hidden, true);
+  assert.equal(e["capture-title"].focused, true);
+  await e["capture-back"].click();
+  assert.equal(e["capture-view"].hidden, true);
+  assert.equal(e["media-view"].hidden, false);
+  assert.equal(e["capture-open"].focused, true);
+  assert.equal(
+    e.list.children.length,
+    1,
+    "navigation preserves the media filter",
+  );
   await e.list.children[0].click();
   assert.deepEqual(JSON.parse(JSON.stringify(f.messages.at(-1))), {
     type: "stretto-send",
@@ -227,6 +243,7 @@ async function fixture({
   );
   fallback.elements.monitoring.checked = false;
   await fallback.elements.monitoring.handlers.change();
+  assert.equal(fallback.elements["capture-summary"].textContent, "Paused");
   assert.equal(
     fallback.elements["all-links"].disabled,
     false,

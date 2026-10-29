@@ -77,7 +77,10 @@ The popup uses Stretto’s navy surfaces, blue accents and compact cards:
 
 - **Desktop connection** shows connected, approval needed or app offline, with
   Connect, Start Stretto and a connection refresh action.
-- **Catch browser downloads** pauses automatic capture. Manual media sends and page
+- **Capture controls** below the media list opens a second view inside the popup,
+  with Back to media navigation. Its summary shows on, paused or off for this site.
+  The media filter is preserved when switching views.
+- **Catch browser downloads**, in Capture controls, pauses automatic capture. Manual media sends and page
   collection remain available while connected. The site switch follows the app’s
   skip list and is disabled while browser capture is paused.
 - **Collect from this page** offers Links and Images. Both open a batch in Stretto
