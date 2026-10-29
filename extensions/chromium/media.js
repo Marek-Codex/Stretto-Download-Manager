@@ -14,7 +14,7 @@ const VIDEO_EXTS = new Set(['mp4', 'webm', 'mkv', 'mov', 'm4v', 'avi', 'ogv']);
 const AUDIO_EXTS = new Set(['mp3', 'm4a', 'ogg', 'oga', 'wav', 'flac', 'opus', 'weba']);
 const PLAYLIST_EXTS = new Set(['m3u8', 'm3u', 'mpd']);
 // Chunks of a stream, not something to download on its own. Recorded so
-// "More formats" can show them, hidden by default.
+// The Settings page can reveal them; hidden by default.
 const SEGMENT_EXTS = new Set(['ts', 'm4s', 'mp4v', 'cmfv', 'cmfa']);
 
 /**
@@ -368,7 +368,7 @@ async function recordMedia(item) {
   });
 
   // Segments never leave the extension: at dozens per page they would drown the
-  // app's feed, and the popup already lists them under More formats.
+  // app's feed, and the popup can list them when stream fragments are enabled in Settings.
   if ((isNew || contextChanged) && item.kind !== 'segment') void reportMedia(entry);
 
   const count = list.filter((m) => m.tabId === item.tabId && m.kind !== 'segment').length;

@@ -53,6 +53,15 @@ was AI-assisted and developed substantially further. He does not recall providin
 source code. This is the author's recollection, not a recovered transcript or
 proof of every input available during the original implementation.
 
+Marek subsequently clarified that the coding assistant had access to his installed
+browser extensions and could have located their source without him supplying it.
+Source access therefore remains possible; his screenshot recollection does not
+establish that the assistant saw only the screenshot.
+
+The companion-popup redesign separates presentation rules from browser API wiring
+and uses Stretto's existing message protocol. It is not a clean-room replacement
+of the capture implementation and does not resolve this historical uncertainty.
+
 That account does not corroborate the older note's claim that upstream source was
 consulted or a particular expression copied. The older note alone should not be
 treated as a verified account of how development happened.

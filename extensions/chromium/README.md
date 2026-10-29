@@ -65,32 +65,34 @@ Every call to the app carries a deadline. A missing timeout is not a slow reques
 a permanently pending promise, and in the capture path a browser download is being held
 open against it.
 
-## Options
+## Settings
 
-Just one: whether this browser's downloads are captured at all. Everything else lives in
-the Stretto app under Settings → Capture rules, and the extension fetches it from
-`GET /rules`. One copy of the rules rather than two that can disagree.
+Browser capture, notifications and the advanced stream-fragment display preference
+live in extension Settings. File-type and site rules belong to the desktop app under
+Settings → Capture rules; the extension fetches them from `GET /rules`.
 
-The rules cover file types, media offered while playing, Content-Type fragments for media
-served from an address with no extension, a minimum media size, a never-capture host list
-and an always-capture host list — the last being the counterpart to `SkipHosts`, for a
-site whose type is deliberately off the list.
+## Browser companion
 
-## Popup
+The popup uses Stretto’s navy surfaces, blue accents and compact cards:
 
-The toolbar icon opens a popup in the app's own palette:
+- **Desktop connection** shows connected, approval needed or app offline, with
+  Connect, Start Stretto and a connection refresh action.
+- **Catch browser downloads** pauses automatic capture. Manual media sends and page
+  collection remain available while connected. The site switch follows the app’s
+  skip list and is disabled while browser capture is paused.
+- **Collect from this page** offers Links and Images. Both open a batch in Stretto
+  for review before downloading.
+- **Media on this page** updates while open. All, Video, Audio and Streams filters
+  show counts for this tab only, newest first. Rows identify direct files and
+  playlists; sending preserves the existing worker handoff with captured headers.
+  Playlist downloads need ffmpeg in the desktop app.
+- **Clear list** forgets this tab’s detected media after the worker confirms success.
+  Stream fragments are hidden by default; enable them in Settings when needed.
 
-- **Connection line** under the name: Connected, Not paired (with a Connect link that
-  brings up the app's Allow prompt), or Stretto is not running — with a **Start it** link,
-  which goes through the `stretto:` scheme registered by the app or its package.
-- **Switch** in the header: the same capture on/off as the options page.
-- **Media on this page**, newest first: direct video and audio plus HLS/DASH playlists,
-  watched through non-blocking `webRequest`. Clicking a row sends it with cookies, referrer
-  and the headers captured with it; playlists go with `isStream` so the app hands them to
-  ffmpeg. **Segments** reveals stream chunks, hidden by default. **Clear** forgets this
-  tab's list.
-- **Links on page / Images on page** send the page's download links or images to Stretto
-  as one batch (`POST /batch`), which the app shows as one list to confirm.
+Presentation decisions live in `popup.model.js`; `popup.js` binds the browser APIs
+and DOM. Capture, pairing and acceptance remain owned by the existing worker.
+Titles are rendered as text, and an unknown or internal tab never exposes other
+tabs’ media. A live update cannot re-enable an in-flight send.
 
 Players that fetch in byte ranges put the range in the query string, so one video used to
 be a new sighting every couple of seconds. Sightings are keyed with those parameters

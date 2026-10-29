@@ -1,317 +1,354 @@
-// Popup: whether Stretto is reachable, the capture switch, and media seen on this page.
-
-const $ = (id) => document.getElementById(id);
-
-// Firefox's promise-based `browser` where it exists, Chrome's `chrome` otherwise.
+// A small companion surface. The worker still owns the actual download handoff.
 const api = globalThis.browser ?? globalThis.chrome;
-
-const sessionStore = () => (api.storage.session ? api.storage.session : api.storage.local);
-
-let tabId;
-let tabUrl;
-let items = [];
-let showAll = false;
-
-function extOf(url) {
-  const match = /\/([^\/?#]+?)(?:\?.*)?(?:#.*)?$/.exec(url);
-  const name = match ? match[1] : '';
-  const dot = name.lastIndexOf('.');
-  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+const model = StrettoPopupModel;
+const $ = (id) => document.getElementById(id);
+const filters = [...document.querySelectorAll("[data-filter]")];
+const mediaStore = () => api.storage.session ?? api.storage.local;
+const state = {
+  tabId: null,
+  tabUrl: "",
+  items: [],
+  filter: "all",
+  fragments: false,
+  enabled: true,
+  connection: "checking",
+  connectionBusy: false,
+  rules: { skipHosts: [] },
+};
+const busy = new Set();
+let connectionRevision = 0;
+const isPage = () =>
+  model.page(state.tabUrl).supported && Number.isInteger(state.tabId);
+const canSend = () => state.connection === "connected" && isPage();
+const keyFor = (item) => `${item.tabId}:${item.url}`;
+function say(message, kind = "") {
+  $("status").textContent = message;
+  $("status").className = kind;
 }
 
-/** Same rule as siteOf in common.js, which the popup page does not load. */
-function siteOf(host) {
-  const labels = String(host || '').toLowerCase().replace(/^\.+|\.+$/g, '').split('.');
-  if (labels.length <= 2 || /^[\d.]+$/.test(host) || host.includes(':')) return String(host || '').toLowerCase();
-  const countryCode = labels[labels.length - 1].length === 2;
-  const secondLevel = ['co', 'com', 'org', 'net', 'gov', 'ac', 'edu', 'ne', 'or'].includes(labels[labels.length - 2]);
-  return labels.slice(countryCode && secondLevel ? -3 : -2).join('.');
+function renderConnection() {
+  const info = model.connection(state.connection, state.enabled, isPage());
+  $("connection").className = `connection ${state.connection}`;
+  $("connection-title").textContent = info.title;
+  $("connection-detail").textContent = info.detail;
+  $("connection-action").textContent = info.action;
+  $("connection-action").hidden = !info.action;
+  $("connection-action").disabled = state.connectionBusy;
+  $("refresh").disabled = state.connectionBusy;
+  $("monitoring").checked = state.enabled;
+  $("capture-detail").textContent = state.enabled
+    ? "Follow the desktop app’s capture rules."
+    : "Paused. Downloads stay in the browser.";
+  for (const id of ["all-links", "all-images"])
+    $(id).disabled = !canSend() || busy.has(id);
+  $("site").hidden = state.connection !== "connected" || !isPage();
+  const host = model.page(state.tabUrl).host;
+  const site = model.site(host);
+  $("site-host").textContent = site;
+  const skipped = (state.rules?.skipHosts || []).some(
+    (h) => h && (host === h || host.endsWith(`.${h}`) || site === h),
+  );
+  $("site-capture").checked = !skipped;
+  $("site-capture").disabled = !state.enabled || busy.has("site");
+  $("site-detail").textContent = !state.enabled
+    ? "Browser capture is paused."
+    : skipped
+      ? "Leave this site’s downloads in the browser."
+      : "Include this site in browser capture.";
 }
 
-function fmtSize(bytes) {
-  if (!bytes || bytes <= 0) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1073741824).toFixed(2)} GB`;
-}
-
-/** The short label in the row's tile: the container where known, else the kind. */
-function badgeFor(item) {
-  const ext = extOf(item.url);
-  if (item.kind === 'stream') return ext === 'mpd' ? 'DASH' : 'HLS';
-  if (item.kind === 'segment') return 'SEG';
-  return ext ? ext.slice(0, 4).toUpperCase() : (item.kind === 'audio' ? 'AUD' : 'VID');
-}
-
-function detailFor(item) {
-  const kind = { stream: 'Stream, joined by ffmpeg', segment: 'Stream chunk', audio: 'Audio', video: 'Video' }[item.kind] || 'Media';
-  const size = fmtSize(item.size);
-  return size ? `${kind} · ${size}` : kind;
-}
-
-function setStatus(message, kind = '') {
-  const status = $('status');
-  status.textContent = message;
-  status.className = kind;
-}
-
-// Duplicate display names (master plus variants) get a numbered prefix.
-function displayNames(shown) {
-  const counts = new Map();
-  for (const item of shown) counts.set(item.name, (counts.get(item.name) || 0) + 1);
-
-  const seen = new Map();
-  return shown.map((item) => {
-    if ((counts.get(item.name) || 0) < 2) return item.name;
-    const n = (seen.get(item.name) || 0) + 1;
-    seen.set(item.name, n);
-    return `(${n}) ${item.name}`;
-  });
-}
-
-function visibleItems() {
-  const scoped = tabId == null ? items : items.filter((m) => m.tabId === tabId);
-  const shown = showAll ? scoped : scoped.filter((m) => m.kind !== 'segment');
-  return [...shown].sort((a, b) => (b.seenAt || 0) - (a.seenAt || 0));
-}
-
-function render() {
-  const list = $('list');
-  list.textContent = '';
-
-  const shown = visibleItems();
-  $('empty').hidden = shown.length > 0;
+function renderMedia() {
+  const page = model.page(state.tabUrl);
+  $("page-title").textContent = page.supported
+    ? `Media on ${page.host.replace(/^www\./, "")}`
+    : "Media on this page";
+  $("page-title").title = state.tabUrl;
+  const all = isPage()
+    ? model.media(state.items, state.tabId, "all", state.fragments)
+    : [];
+  for (const button of filters) {
+    const kind = button.dataset.filter;
+    $(`count-${kind}`).textContent = String(
+      kind === "all"
+        ? all.length
+        : all.filter((item) => item.kind === kind).length,
+    );
+    button.setAttribute("aria-pressed", String(kind === state.filter));
+  }
+  const shown = all.filter(
+    (item) => state.filter === "all" || item.kind === state.filter,
+  );
+  const names = model.names(shown);
+  const list = $("list");
+  list.replaceChildren();
   list.hidden = shown.length === 0;
-  $('clear').hidden = shown.length === 0;
-
-  const names = displayNames(shown);
+  $("empty").hidden = shown.length > 0;
+  $("clear").hidden =
+    !isPage() || !state.items.some((item) => item?.tabId === state.tabId);
+  $("clear").disabled = busy.has("clear");
+  $("empty-title").textContent = !isPage()
+    ? "Open a website to get started"
+    : all.length
+      ? "Nothing in this filter"
+      : "Nothing detected yet";
+  $("empty-detail").textContent = !isPage()
+    ? "Browser settings and internal pages cannot be collected."
+    : all.length
+      ? "Try another media type."
+      : "Play media on this page, then check here.";
   shown.forEach((item, index) => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = `row ${item.kind}`;
-
-    const tile = document.createElement('span');
-    tile.className = 'kind';
-    tile.textContent = badgeFor(item);
-    tile.setAttribute('aria-hidden', 'true');
-
-    const meta = document.createElement('span');
-    meta.className = 'meta';
-
-    const name = document.createElement('div');
-    name.className = 'name';
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `media-row ${item.kind}`;
+    row.disabled = !canSend() || busy.has(keyFor(item));
+    const info = model.describe(item);
+    row.setAttribute(
+      "aria-label",
+      `Send ${names[index]} to Stretto, ${info.detail}`,
+    );
+    row.title = canSend()
+      ? "Send to Stretto"
+      : "Connect Stretto to send this media";
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = info.badge;
+    badge.setAttribute("aria-hidden", "true");
+    const meta = document.createElement("span");
+    meta.className = "grow";
+    const name = document.createElement("div");
+    name.className = "name";
     name.textContent = names[index];
     name.title = item.url;
-
-    const detail = document.createElement('div');
-    detail.className = 'detail';
-    detail.textContent = detailFor(item);
-
-    const send = document.createElement('span');
-    send.className = 'send';
-    send.textContent = 'Download';
-    send.setAttribute('aria-hidden', 'true');
-
+    const detail = document.createElement("div");
+    detail.className = "detail";
+    detail.textContent = info.detail;
     meta.append(name, detail);
-    row.setAttribute('aria-label', `Download ${names[index]} with Stretto, ${detail.textContent}`);
-    row.append(tile, meta, send);
-    row.addEventListener('click', () => sendItem(row, item));
+    const arrow = document.createElement("span");
+    arrow.className = "send";
+    arrow.textContent = "↓";
+    arrow.setAttribute("aria-hidden", "true");
+    row.append(badge, meta, arrow);
+    row.addEventListener("click", () => sendItem(item));
     list.append(row);
   });
 }
-
-async function sendItem(row, item) {
-  row.disabled = true;
-  setStatus(`Sending ${item.name}…`);
-
-  try {
-    const result = await api.runtime.sendMessage({ type: 'stretto-send', url: item.url, tabUrl, tabId: item.tabId, kind: item.kind });
-
-    if (result?.ok) setStatus('Sent to Stretto.', 'ok');
-    else if (result?.error === 'not-paired') setStatus('Stretto has not allowed this extension yet.', 'bad');
-    else if (result?.error === 'declined') setStatus('Stretto did not take it.', 'bad');
-    else setStatus(`Stretto is not reachable (${result?.error || 'unknown error'}).`, 'bad');
-  } catch {
-    setStatus('Stretto is not reachable. Is the app running?', 'bad');
-  }
-
-  row.disabled = false;
+function render() {
+  renderConnection();
+  renderMedia();
 }
 
-/** Fills the connection line under the name. */
-async function showConnection() {
-  const conn = $('conn');
-  const text = $('conn-text');
-
-  let status;
+async function refreshConnection() {
+  const revision = ++connectionRevision;
+  state.connectionBusy = true;
+  renderConnection();
   try {
-    status = await api.runtime.sendMessage({ type: 'stretto-status' });
+    const result = await api.runtime.sendMessage({ type: "stretto-status" });
+    if (revision !== connectionRevision) return;
+    state.connection = ["connected", "unpaired"].includes(result?.state)
+      ? result.state
+      : "offline";
+    const cfg = await api.storage.local.get({ rules: { skipHosts: [] } });
+    if (revision === connectionRevision) state.rules = cfg.rules;
   } catch {
-    status = { state: 'offline' };
+    if (revision === connectionRevision) state.connection = "offline";
+  } finally {
+    if (revision === connectionRevision) {
+      state.connectionBusy = false;
+      render();
+    }
   }
-
-  conn.className = `conn ${status?.state || 'offline'}`;
-  text.textContent = '';
-
-  if (status?.state === 'connected') {
-    text.textContent = 'Connected';
-  } else if (status?.state === 'unpaired') {
-    // The app is running but has not handed this extension a token yet; asking again
-    // brings up its Allow prompt.
-    text.append('Not paired · ');
-    const link = document.createElement('a');
-    link.textContent = 'Connect';
-    link.addEventListener('click', async () => {
-      text.textContent = 'Waiting for Stretto…';
-      try { await api.runtime.sendMessage({ type: 'stretto-connect' }); } catch { /* shown below */ }
-      showConnection();
+}
+async function sendItem(item) {
+  const key = keyFor(item);
+  if (!canSend() || busy.has(key)) return;
+  busy.add(key);
+  renderMedia();
+  say(`Sending ${item.name || "media"}…`);
+  try {
+    const result = await api.runtime.sendMessage({
+      type: "stretto-send",
+      url: item.url,
+      tabUrl: state.tabUrl,
+      tabId: item.tabId,
+      kind: item.kind,
     });
-    text.append(link);
-  } else {
-    // Offer to start the app when it is absent. Its registered URI scheme means
-    // the user does not need to go hunting for the shortcut.
-    text.textContent = 'Stretto is not running · ';
-    const launch = document.createElement('a');
-    launch.textContent = 'Start it';
-    launch.addEventListener('click', () => {
-      // An extension page navigating to a custom scheme; the browser hands it to whatever
-      // registered it, which is the app. Nothing to wait for, so the popup just closes.
-      window.location.href = 'stretto://launch';
-      window.close();
-    });
-    text.append(launch);
-  }
-
-  const offline = status?.state !== 'connected';
-  $('all-links').disabled = offline;
-  $('all-images').disabled = offline;
-
-  await showSite(!offline);
-}
-
-/** The site switch: whether this host is on the app's skip list. */
-async function showSite(connected) {
-  let host = '';
-  try { host = /^https?:/i.test(tabUrl || '') ? new URL(tabUrl).hostname : ''; } catch { /* not a web page */ }
-
-  $('site').hidden = !connected || !host;
-  if ($('site').hidden) return;
-
-  const { rules } = await api.storage.local.get({ rules: { skipHosts: [] } });
-  const site = siteOf(host);
-  $('site-host').textContent = site;
-  // Same matching as capture itself, so the switch shows what will actually happen.
-  $('site-capture').checked = !(rules.skipHosts || []).some((h) => h && (host === h || host.endsWith(`.${h}`) || site === h));
-}
-
-$('site-capture').addEventListener('change', async () => {
-  const box = $('site-capture');
-  const host = $('site-host').textContent;
-  box.disabled = true;
-
-  try {
-    const result = await api.runtime.sendMessage({ type: 'stretto-skip-host', host, skip: !box.checked });
-    if (!result?.ok) throw new Error(result?.error || 'failed');
-    setStatus(box.checked
-      ? `Downloads from ${host} go to Stretto again.`
-      : `Downloads from ${host} stay in the browser.`, 'ok');
+    if (result?.ok) say("Sent to Stretto.", "ok");
+    else
+      say(
+        result?.error === "declined"
+          ? "Stretto did not accept this download."
+          : "Could not send. Check the connection and try again.",
+        "bad",
+      );
   } catch {
-    box.checked = !box.checked;
-    setStatus('Could not change that. Is Stretto running?', 'bad');
+    say("Could not reach Stretto. Check that the app is running.", "bad");
+  } finally {
+    busy.delete(key);
+    renderMedia();
   }
-
-  box.disabled = false;
+}
+async function collect(images) {
+  const id = images ? "all-images" : "all-links";
+  if (!canSend() || busy.has(id)) return;
+  busy.add(id);
+  renderConnection();
+  say(images ? "Collecting images…" : "Collecting links…");
+  try {
+    const result = await api.runtime.sendMessage({
+      type: "stretto-grab-all",
+      tabId: state.tabId,
+      images,
+    });
+    say(
+      result?.message ||
+        (result?.ok
+          ? "Sent to Stretto for review."
+          : "Could not collect this page."),
+      result?.ok ? "ok" : "bad",
+    );
+  } catch {
+    say("Could not reach Stretto.", "bad");
+  } finally {
+    busy.delete(id);
+    renderConnection();
+  }
+}
+$("monitoring").addEventListener("change", async () => {
+  const enabled = $("monitoring").checked;
+  $("monitoring").disabled = true;
+  try {
+    await api.storage.local.set({ enabled });
+    state.enabled = enabled;
+    say(enabled ? "Browser capture is on." : "Browser capture is paused.");
+  } catch {
+    say("Could not save the capture setting.", "bad");
+  } finally {
+    $("monitoring").disabled = false;
+    renderConnection();
+  }
 });
-
-async function grabAll(images) {
-  const button = images ? $('all-images') : $('all-links');
-  button.disabled = true;
-  setStatus(images ? 'Collecting images…' : 'Collecting links…');
-
+$("site-capture").addEventListener("change", async () => {
+  if (!canSend() || !state.enabled || busy.has("site")) return;
+  const host = $("site-host").textContent,
+    skip = !$("site-capture").checked;
+  busy.add("site");
+  renderConnection();
   try {
-    const result = await api.runtime.sendMessage({ type: 'stretto-grab-all', tabId, images });
-    setStatus(result?.message || (result?.ok ? 'Sent to Stretto.' : 'Could not send.'), result?.ok ? '' : 'bad');
+    const result = await api.runtime.sendMessage({
+      type: "stretto-skip-host",
+      host,
+      skip,
+    });
+    if (!result?.ok) throw new Error();
+    state.rules = (
+      await api.storage.local.get({ rules: { skipHosts: [] } })
+    ).rules;
+    say(
+      skip
+        ? `Downloads from ${host} stay in the browser.`
+        : `Downloads from ${host} go to Stretto again.`,
+      "ok",
+    );
   } catch {
-    setStatus('Stretto is not reachable.', 'bad');
+    say("Could not change this site’s capture rule.", "bad");
+  } finally {
+    busy.delete("site");
+    renderConnection();
   }
-
-  button.disabled = false;
-}
-
+});
+$("connection-action").addEventListener("click", async () => {
+  if (state.connectionBusy) return;
+  if (state.connection === "offline") {
+    window.location.href = "stretto://launch";
+    window.close();
+    return;
+  }
+  state.connectionBusy = true;
+  renderConnection();
+  say("Check Stretto for the connection request.");
+  try {
+    await api.runtime.sendMessage({ type: "stretto-connect" });
+  } catch {
+    /* Status below explains where we landed. */
+  }
+  await refreshConnection();
+});
+$("refresh").addEventListener("click", refreshConnection);
+$("opts").addEventListener("click", () => api.runtime.openOptionsPage());
+$("all-links").addEventListener("click", () => collect(false));
+$("all-images").addEventListener("click", () => collect(true));
+for (const button of filters)
+  button.addEventListener("click", () => {
+    state.filter = button.dataset.filter;
+    renderMedia();
+  });
+$("clear").addEventListener("click", async () => {
+  if (!isPage() || busy.has("clear")) return;
+  busy.add("clear");
+  renderMedia();
+  try {
+    const result = await api.runtime.sendMessage({
+      type: "stretto-clear",
+      tabId: state.tabId,
+    });
+    if (!result?.ok) throw new Error();
+    state.items = state.items.filter((item) => item?.tabId !== state.tabId);
+    say("Page list cleared.");
+  } catch {
+    say("Could not clear the list. Try again.", "bad");
+  } finally {
+    busy.delete("clear");
+    renderMedia();
+  }
+});
+api.storage.onChanged.addListener((changes, area) => {
+  let changed = false;
+  if (area === "local") {
+    if (changes.enabled) {
+      state.enabled = changes.enabled.newValue !== false;
+      changed = true;
+    }
+    if (changes.rules) {
+      state.rules = changes.rules.newValue;
+      changed = true;
+    }
+    if (changes.popupShowAll) {
+      state.fragments = changes.popupShowAll.newValue === true;
+      changed = true;
+    }
+  }
+  if (area === (api.storage.session ? "session" : "local") && changes.media) {
+    state.items = Array.isArray(changes.media.newValue)
+      ? changes.media.newValue
+      : [];
+    changed = true;
+  }
+  if (changed) render();
+});
 async function init() {
   try {
     const [tab] = await api.tabs.query({ active: true, currentWindow: true });
-    tabId = tab?.id;
-    tabUrl = tab?.url;
+    state.tabId = tab?.id;
+    state.tabUrl = tab?.url || "";
   } catch {
-    tabId = undefined;
-    tabUrl = undefined;
+    /* Unknown tabs must not expose media from all the other tabs. */
   }
-
   try {
-    const host = new URL(tabUrl).hostname.replace(/^www\./i, '');
-    $('page-title').textContent = host ? `Media on ${host}` : 'Media on this page';
-    $('page-title').title = tabUrl;
+    const cfg = await api.storage.local.get({
+      enabled: true,
+      popupShowAll: false,
+      rules: { skipHosts: [] },
+    });
+    state.enabled = cfg.enabled !== false;
+    state.fragments = cfg.popupShowAll === true;
+    state.rules = cfg.rules;
+    const stored = await mediaStore().get({ media: [] });
+    state.items = Array.isArray(stored.media) ? stored.media : [];
   } catch {
-    $('page-title').textContent = 'Media on this page';
+    say("Some saved settings could not be loaded.", "bad");
   }
-
-  // Browser pages cannot be scripted, so there is nothing to collect from them.
-  if (!/^https?:/i.test(tabUrl || '')) {
-    $('all-links').disabled = true;
-    $('all-images').disabled = true;
-  }
-
-  const cfg = await api.storage.local.get({ enabled: true, popupShowAll: false });
-  $('monitoring').checked = cfg.enabled !== false;
-  showAll = cfg.popupShowAll === true;
-  $('formats').setAttribute('aria-pressed', String(showAll));
-
-  try {
-    const stored = await sessionStore().get({ media: [] });
-    items = Array.isArray(stored.media) ? stored.media : [];
-  } catch {
-    items = [];
-  }
-
+  $("version").textContent = api.runtime.getManifest().version;
   render();
-  await showConnection();
-
-  if (!/^https?:/i.test(tabUrl || '')) {
-    $('all-links').disabled = true;
-    $('all-images').disabled = true;
-  }
+  await refreshConnection();
 }
-
-$('monitoring').addEventListener('change', async () => {
-  await api.storage.local.set({ enabled: $('monitoring').checked });
-  setStatus($('monitoring').checked
-    ? 'Downloads from this browser go to Stretto.'
-    : 'Downloads stay in the browser until you switch this back on.');
-});
-
-$('formats').addEventListener('click', async () => {
-  showAll = !showAll;
-  $('formats').setAttribute('aria-pressed', String(showAll));
-  await api.storage.local.set({ popupShowAll: showAll });
-  render();
-});
-
-$('clear').addEventListener('click', async () => {
-  try {
-    await api.runtime.sendMessage({ type: 'stretto-clear', tabId });
-  } catch {
-    // The worker may be asleep; fall through to the local refresh either way.
-  }
-
-  items = tabId == null ? [] : items.filter((m) => m.tabId !== tabId);
-  setStatus('');
-  render();
-});
-
-$('all-links').addEventListener('click', () => grabAll(false));
-$('all-images').addEventListener('click', () => grabAll(true));
-$('opts').addEventListener('click', () => api.runtime.openOptionsPage());
-
 init();

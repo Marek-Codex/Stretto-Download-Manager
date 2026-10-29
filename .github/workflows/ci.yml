@@ -32,5 +32,7 @@ jobs:
         run: node tools/capture-test.js
       - name: Media detection regressions
         run: node tools/media-test.js
+      - name: Companion popup regressions
+        run: node tools/popup-test.js
       - name: Naming and handoff acceptance regressions
         run: node extensions/naming-check.js

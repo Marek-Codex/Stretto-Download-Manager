@@ -1,183 +1,128 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    /* The desktop app's palette, so the popup reads as part of Stretto rather than a
-       separate product: the same navy window, tonal surfaces and one blue accent. */
-    :root {
-      color-scheme: dark;
-      --accent: #3ca0ff;
-      --accent-soft: rgba(60, 160, 255, .12);
-      --accent-line: rgba(60, 160, 255, .3);
-      --bg: #000b17;
-      --surface: rgba(255, 255, 255, .04);
-      --surface-hover: rgba(255, 255, 255, .07);
-      --line: rgba(255, 255, 255, .08);
-      --text: #eaf0f6;
-      --muted: #8b9aa8;
-      --ok: #55cba7;
-      --warn: #f4b860;
-      --bad: #ff6b6b;
-    }
-
-    * { box-sizing: border-box; }
-    /* A display rule on an element would otherwise override its hidden attribute. */
-    [hidden] { display: none !important; }
-
-    body {
-      margin: 0;
-      width: 360px;
-      background: var(--bg);
-      color: var(--text);
-      font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-    }
-
-    button { color: inherit; font: inherit; cursor: pointer; }
-    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-    /* ═══ Header ═══ */
-    header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
-    header img { width: 26px; height: 26px; }
-    .brand { flex: 1; min-width: 0; }
-    .brand h1 { margin: 0; font-size: 14px; font-weight: 600; }
-    .conn { display: flex; align-items: center; gap: 6px; margin-top: 1px; color: var(--muted); font-size: 11.5px; }
-    .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
-    .conn.connected .dot { background: var(--ok); }
-    .conn.unpaired .dot { background: var(--warn); }
-    .conn.offline .dot { background: var(--bad); }
-    .conn a { color: var(--accent); cursor: pointer; text-decoration: none; }
-    .conn a:hover { text-decoration: underline; }
-
-    .icon-button {
-      display: grid; place-items: center; width: 30px; height: 30px; flex: none;
-      border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px;
-    }
-    .icon-button:hover { background: var(--surface-hover); color: var(--text); }
-    /* Pulled out so the glyph, not its hover box, ends on the 14px edge with the switches. */
-    header .icon-button { margin-right: -7px; }
-
-    /* A switch rather than a checkbox: it is the one on/off the popup offers. */
-    .switch { position: relative; width: 36px; height: 20px; flex: none; }
-    .switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-    .switch span {
-      position: absolute; inset: 0; border: 1px solid var(--muted); border-radius: 10px;
-      transition: background 120ms ease, border-color 120ms ease; pointer-events: none;
-    }
-    .switch span::after {
-      content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px;
-      border-radius: 50%; background: var(--muted); transition: transform 120ms ease, background 120ms ease;
-    }
-    .switch input:checked + span { background: var(--accent); border-color: var(--accent); }
-    .switch input:checked + span::after { transform: translateX(16px); background: #07131f; }
-
-    .switch-label { margin-right: -2px; color: var(--muted); font-size: 12px; cursor: pointer; }
-
-    /* ═══ This site ═══ */
-    .site { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; }
-    .site .label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
-    .site .label strong { color: var(--text); font-weight: 600; }
-
-    /* ═══ Page section ═══ */
-    .section-head {
-      display: flex; align-items: center; gap: 8px; padding: 8px 14px 6px;
-      border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px;
-    }
-    .section-head .title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .link-button {
-      border: 0; background: none; padding: 2px 4px; border-radius: 4px; color: var(--muted); font-size: 11.5px;
-    }
-    .link-button:hover { color: var(--text); background: var(--surface-hover); }
-    .link-button[aria-pressed="true"] { color: var(--accent); }
-    .section-head .link-button:last-child { margin-right: -4px; }
-
-    #list {
-      /* 6 + the row's 8 puts the tiles on the same 14px line as the header and labels. */
-      max-height: 300px; overflow-y: auto; padding: 0 6px 8px;
-      display: flex; flex-direction: column; gap: 2px;
-      scrollbar-color: rgba(255, 255, 255, .2) transparent; scrollbar-width: thin;
-    }
-
-    .row {
-      display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px;
-      text-align: left; border: 0; border-radius: 6px; background: transparent;
-    }
-    .row:hover { background: var(--surface-hover); }
-    .row:disabled { opacity: .55; cursor: wait; }
-
-    .kind {
-      display: grid; place-items: center; width: 30px; height: 30px; flex: none;
-      border-radius: 7px; background: var(--accent-soft); color: var(--accent);
-      font-size: 9.5px; font-weight: 700; letter-spacing: .3px;
-    }
-    .row.audio .kind { background: rgba(167, 139, 250, .14); color: #b8a4ff; }
-    .row.segment .kind { background: var(--surface); color: var(--muted); }
-
-    .meta { min-width: 0; flex: 1; }
-    .name { overflow: hidden; font-size: 12.5px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
-    .detail { overflow: hidden; color: var(--muted); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
-    .send { color: var(--muted); font-size: 12px; opacity: 0; transition: opacity 120ms ease; }
-    .row:hover .send { opacity: 1; color: var(--accent); }
-
-    #empty { margin: 2px 14px 12px; padding: 16px; border-radius: 8px; background: var(--surface); color: var(--muted); text-align: center; font-size: 12px; }
-    #empty strong { display: block; margin-bottom: 2px; color: var(--text); font-weight: 600; }
-
-    /* ═══ Footer ═══ */
-    footer { display: flex; gap: 6px; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
-    footer button {
-      flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-      min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px;
-      background: var(--surface); font-size: 12px;
-    }
-    footer button:hover { background: var(--surface-hover); border-color: var(--accent-line); }
-    footer button:disabled { opacity: .5; cursor: default; }
-
-    #status { min-height: 0; padding: 0 14px; color: var(--muted); font-size: 11.5px; }
-    #status:not(:empty) { padding-bottom: 10px; }
-    #status.ok { color: var(--ok); }
-    #status.bad { color: var(--bad); }
-  </style>
-</head>
-<body>
-  <header>
-    <img src="icon32.png" alt="" />
-    <div class="brand">
-      <h1>Stretto</h1>
-      <div id="conn" class="conn"><span class="dot"></span><span id="conn-text">Checking…</span></div>
-    </div>
-    <!-- Named on screen, not just in a tooltip: the site switch below looks identical and
-         only covers one site, so an unlabelled master switch was easy to flip by mistake. -->
-    <label class="switch-label" for="monitoring">Capture</label>
-    <label class="switch" title="Take over downloads from this browser">
-      <input type="checkbox" id="monitoring" aria-label="Take over downloads from this browser" />
-      <span></span>
-    </label>
-    <button id="opts" class="icon-button" type="button" aria-label="Options" title="Options"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3"/></svg></button>
-  </header>
-
-  <!-- Shown on web pages once Stretto is connected. Off adds the site to the app's skip list. -->
-  <div id="site" class="site" hidden>
-    <span class="label">Capture downloads on <strong id="site-host"></strong></span>
-    <label class="switch" title="Off leaves downloads from this site to the browser">
-      <input type="checkbox" id="site-capture" aria-label="Capture downloads on this site" />
-      <span></span>
-    </label>
-  </div>
-
-  <div class="section-head">
-    <span id="page-title" class="title">Media on this page</span>
-    <button id="formats" class="link-button" type="button" aria-pressed="false" title="Stream chunks are hidden by default">Segments</button>
-    <button id="clear" class="link-button" type="button" title="Forget media seen on this page">Clear</button>
-  </div>
-  <div id="list" aria-label="Detected media"></div>
-  <div id="empty" hidden><strong>No media yet</strong>Play a video or audio clip and it shows up here.</div>
-
-  <footer>
-    <button id="all-links" type="button" title="Every download link on this page, as one list in Stretto">Links on page</button>
-    <button id="all-images" type="button" title="Every image on this page, as one list in Stretto">Images on page</button>
-  </footer>
-  <div id="status" role="status" aria-live="polite"></div>
-  <script src="popup.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Stretto browser companion</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icon48.png" width="32" height="32" alt="" />
+      <div class="grow">
+        <h1>Stretto</h1>
+        <div class="hint">Your browser companion</div>
+      </div>
+      <button
+        id="opts"
+        class="icon-button"
+        aria-label="Extension settings"
+        title="Extension settings"
+      >
+        ⚙
+      </button>
+    </header>
+    <main>
+      <section
+        id="connection"
+        class="connection checking"
+        aria-label="Desktop connection"
+      >
+        <span class="dot" aria-hidden="true"></span>
+        <div class="grow">
+          <strong id="connection-title">Finding Stretto…</strong>
+          <div class="hint" id="connection-detail">
+            Checking the desktop app.
+          </div>
+        </div>
+        <button id="connection-action" hidden></button
+        ><button
+          id="refresh"
+          class="icon-button"
+          aria-label="Check connection"
+          title="Check connection"
+        >
+          ↻
+        </button>
+      </section>
+      <section class="card" aria-label="Browser capture">
+        <div class="setting">
+          <div class="grow">
+            <label for="monitoring">Catch browser downloads</label>
+            <div id="capture-detail" class="hint">
+              Follow the desktop app’s capture rules.
+            </div>
+          </div>
+          <label class="switch"
+            ><input
+              id="monitoring"
+              type="checkbox"
+              aria-label="Catch browser downloads" /><span></span
+          ></label>
+        </div>
+        <div id="site" class="setting site" hidden>
+          <div class="grow">
+            <label for="site-capture" id="site-host"></label>
+            <div class="hint" id="site-detail"></div>
+          </div>
+          <label class="switch"
+            ><input
+              id="site-capture"
+              type="checkbox"
+              aria-label="Capture downloads on this site" /><span></span
+          ></label>
+        </div>
+      </section>
+      <section aria-labelledby="collect-title">
+        <div class="section-head">
+          <h2 id="collect-title">Collect from this page</h2>
+          <span class="hint">Review in Stretto</span>
+        </div>
+        <div class="collection">
+          <button id="all-links" disabled>
+            <span class="collection-icon" aria-hidden="true">↗</span
+            ><span
+              ><strong>Links</strong
+              ><small>Choose files to download</small></span
+            ></button
+          ><button id="all-images" disabled>
+            <span class="collection-icon" aria-hidden="true">▧</span
+            ><span
+              ><strong>Images</strong><small>Gather page images</small></span
+            >
+          </button>
+        </div>
+      </section>
+      <section aria-labelledby="page-title">
+        <div class="section-head">
+          <h2 id="page-title">Media on this page</h2>
+          <button id="clear" class="text-button" hidden>Clear list</button>
+        </div>
+        <div class="filters" role="group" aria-label="Filter detected media">
+          <button data-filter="all" aria-pressed="true">
+            All <span id="count-all">0</span></button
+          ><button data-filter="video" aria-pressed="false">
+            Video <span id="count-video">0</span></button
+          ><button data-filter="audio" aria-pressed="false">
+            Audio <span id="count-audio">0</span></button
+          ><button data-filter="stream" aria-pressed="false">
+            Streams <span id="count-stream">0</span>
+          </button>
+        </div>
+        <div id="list" aria-label="Detected media"></div>
+        <div id="empty">
+          <strong id="empty-title">Nothing detected yet</strong>
+          <div id="empty-detail">Play media on this page, then check here.</div>
+        </div>
+        <p class="note">
+          Some media needs an optional desktop tool. Availability and permission
+          to download depend on the source.
+        </p>
+      </section>
+      <div id="status" role="status" aria-live="polite"></div>
+    </main>
+    <footer><span>Part of Plexus Apps</span><span id="version"></span></footer>
+    <script src="popup.model.js"></script>
+    <script src="popup.js"></script>
+  </body>
 </html>

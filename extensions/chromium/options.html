@@ -66,6 +66,7 @@
     .switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
     .switch span { position: absolute; inset: 0; border: 1px solid var(--muted); border-radius: 11px; pointer-events: none; transition: background 120ms ease, border-color 120ms ease; }
     .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: transform 120ms ease, background 120ms ease; }
+    .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
     .switch input:checked + span { background: var(--accent); border-color: var(--accent); }
     .switch input:checked + span::after { transform: translateX(18px); background: #07131f; }
 
@@ -125,6 +126,17 @@
           Which file types are captured is set in the Stretto app, under Settings → Capture rules,
           so every browser follows the same rules.
         </div>
+      </div>
+    </div>
+
+    <h2>Media list</h2>
+    <div class="card">
+      <div class="row">
+        <div class="grow">
+          <div class="title">Show stream fragments</div>
+          <div class="hint">Advanced: include individual chunks in the popup’s All filter. These are not complete videos.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="fragments" aria-label="Show stream fragments" /><span></span></label>
       </div>
     </div>
 

@@ -49,7 +49,7 @@ Because a Firefox download is a navigation, its request headers come from the sh
 is why the tracker also watches `main_frame` and `sub_frame` — one event per page load,
 cheap next to the per-resource traffic the media watcher deliberately skips.
 
-The popup's **Start it** link goes through the `stretto:` scheme, which the app registers
+The popup's **Start Stretto** button goes through the `stretto:` scheme, which the app registers
 under `HKCU\Software\Classes` on every launch. Per-user, so nothing needs elevation and
 removing it is one key.
 

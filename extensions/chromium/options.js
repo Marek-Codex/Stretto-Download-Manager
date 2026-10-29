@@ -23,7 +23,7 @@ async function connect() {
     const result = await api.runtime.sendMessage({ type: 'stretto-connect' });
 
     if (result?.ok) {
-      show('Connected', `Stretto is listening on port ${result.port}. Nothing to set up.`, 'ok');
+      show('Connected', 'Ready to send downloads to Stretto on this computer.', 'ok');
     } else {
       // Two very different causes, and the user can act on both.
       show('Not connected',
@@ -75,9 +75,10 @@ async function showSites() {
 }
 
 async function load() {
-  const cfg = await api.storage.local.get({ enabled: true, notifications: true });
+  const cfg = await api.storage.local.get({ enabled: true, notifications: true, popupShowAll: false });
   $('enabled').checked = cfg.enabled !== false;
   $('notifications').checked = cfg.notifications !== false;
+  $('fragments').checked = cfg.popupShowAll === true;
   $('version').textContent = `Stretto extension ${api.runtime.getManifest().version}`;
 
   await showSites();
@@ -91,6 +92,14 @@ $('enabled').addEventListener('change', () =>
 
 $('notifications').addEventListener('change', () =>
   api.storage.local.set({ notifications: $('notifications').checked }));
+
+$('fragments').addEventListener('change', async () => {
+  try { await api.storage.local.set({ popupShowAll: $('fragments').checked }); }
+  catch {
+    $('fragments').checked = !$('fragments').checked;
+    say('Could not save the media-list setting.', 'bad');
+  }
+});
 
 $('forget').addEventListener('click', async () => {
   await api.storage.local.set({ token: '', port: 0 });
