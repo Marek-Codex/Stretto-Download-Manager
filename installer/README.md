@@ -76,6 +76,13 @@ guaranteed. The generated `TESTING.md` explains certificate trust and later remo
 
 ### Distribution acceptance
 
+Every installer payload includes `ENGINE-BUILD.json`, generated from the published
+`Stretto.Core.dll` and current Core sources. It records the assembly SHA-256,
+assembly version, Git commit/source-modification status and Core source hash.
+This identifies a build; it does not establish source provenance or prevent copying.
+See [the engine engineering report](../docs/ENGINE-ENGINEERING-2026-10-28.md) for
+the measured benchmark, scope and limits.
+
 Current results and the uninstall-test approval block are recorded in [finishing work](../docs/FINISHING-WORK-2026-10-28.md).
 
 Build success and MakeAppx validation are not installation tests. On a clean Windows account/VM without SDKs, verify both signed artifacts independently: launch, download, tray exit, opt-in startup and Windows disabling it, browser launch/pairing, optional tool installation, restart/resume, upgrade from a previous signed package, and uninstall. Check that browser extension paths remain valid after an MSIX upgrade. Test EXE installation/uninstallation in both interactive and silent modes. Do not label these packages release-ready until those checks and the engine/browser findings in the release review are resolved.

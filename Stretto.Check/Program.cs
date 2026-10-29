@@ -15,6 +15,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
         Options:
           -o <dir>    output directory        (default: ./downloads)
           -n <count>  parallel connections    (default: 8, max 32)
+          --adaptive measure and adjust connections up to -n (default: fixed)
           --benchmark download twice, 1 connection vs N, and compare
         """);
     return 0;
@@ -128,7 +129,8 @@ try
         var ratio = single.Elapsed.TotalSeconds / multi.Elapsed.TotalSeconds;
         Console.WriteLine();
         Console.WriteLine($"  1 connection   {single.Elapsed.TotalSeconds,7:F2}s   {Rate(single)}");
-        Console.WriteLine($"  {multi.ConnectionsUsed,2} connections  {multi.Elapsed.TotalSeconds,7:F2}s   {Rate(multi)}");
+        Console.WriteLine($"  up to {connections} connections ({(args.Contains("--adaptive") ? "adaptive" : "fixed")})  {multi.Elapsed.TotalSeconds:F2}s   {Rate(multi)}");
+        Console.WriteLine($"  actual peak    {multi.PeakConnections} connections; extra requests refused: {multi.ExtraConnectionsRefused}");
         Console.WriteLine($"  speedup        {ratio,7:F2}x");
     }
     else
@@ -161,6 +163,7 @@ async Task<DownloadResult> RunAsync(int conns, string dir)
         Url = uri!,
         TargetDirectory = dir,
         Connections = conns,
+        Adaptive = args.Contains("--adaptive"),
         Overwrite = !args.Contains("--no-overwrite"),
         UseServerTimestamp = args.Contains("--server-time"),
     };

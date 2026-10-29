@@ -14,8 +14,9 @@ namespace Stretto.Core;
 /// and writes every response straight into the final file at its own offset.
 ///
 /// The speed does not come from threads -- these are async socket reads, so a 16-connection
-/// download occupies roughly no CPU. It comes from sidestepping per-connection server
-/// throttling and from letting several TCP streams share the recovery cost of packet loss.
+/// download does not need a thread per connection. Parallel ranges can improve throughput
+/// when one connection underuses the available capacity; the adaptive policy measures
+/// whether additional requests actually help and retires them when they do not.
 /// </summary>
 public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesPerSegment = 5)
 {
@@ -60,8 +61,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
     private const double RampMinimumRemainingSeconds = 5;
 
     /// <summary>
-    /// A speed limit needs no special case: the ramp grows only while the speed rises, so it
-    /// stops by itself once the limit is what holds it.
+    /// Known speed limits stop the ramp directly. Unknown bottlenecks are detected by
+    /// comparing throughput before and after each bounded connection increase.
     /// </summary>
     private static bool Ramps(DownloadRequest request) =>
         request.Adaptive && Math.Clamp(request.Connections, 1, MaxConnections) > RampStart;
@@ -76,7 +77,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
     /// step does nothing the line (or the server's per-client limit) is full, and more
     /// connections would only make the site's life harder.
     /// </summary>
-    private sealed class Ramp(long startBytes)
+    internal sealed class Ramp(long startBytes)
     {
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private long _lastBytes = startBytes;
@@ -84,14 +85,17 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         private double _rateBefore;
         private bool _probing;
         private int _connectionsBefore;
+        private bool _marginalSample;
 
         public bool Done { get; private set; }
         public int? RetireTo { get; private set; }
 
         /// <returns>How many connections to open now.</returns>
-        public int Evaluate(long bytes, int running, int ceiling, long remaining, bool refused)
+        public int Evaluate(long bytes, int running, int ceiling, long remaining, bool refused, long speedLimit = 0)
+            => EvaluateAt(_clock.Elapsed, bytes, running, ceiling, remaining, refused, speedLimit);
+
+        internal int EvaluateAt(TimeSpan now, long bytes, int running, int ceiling, long remaining, bool refused, long speedLimit = 0)
         {
-            var now = _clock.Elapsed;
             var seconds = (now - _lastAt).TotalSeconds;
             var rate = seconds > 0 ? (bytes - _lastBytes) / seconds : 0;
             _lastBytes = bytes;
@@ -104,8 +108,23 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 return 0;
             }
 
+            // The user's speed limit is not a puzzle for more sockets to solve.
+            // Leave a little measurement tolerance and keep the connections that got here.
+            if (speedLimit > 0 && rate >= speedLimit * .95)
+            {
+                Done = true;
+                return 0;
+            }
+
             if (_probing)
             {
+                // One middling interval can just be a busy router or TCP slow start.
+                // Confirm a marginal result once; a large regression backs off immediately.
+                if (!_marginalSample && rate >= _rateBefore * .90 && rate < _rateBefore * RampGain)
+                {
+                    _marginalSample = true;
+                    return 0;
+                }
                 // The last batch did not pay for itself: this is as fast as it goes.
                 if (rate < _rateBefore * RampGain)
                 {
@@ -114,7 +133,12 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                     return 0;
                 }
                 _probing = false;
+                _marginalSample = false;
             }
+
+            // No bytes is not evidence that more connections will help. Existing workers
+            // own stall recovery; the controller does not send a search party after them.
+            if (rate <= 0) return 0;
 
             if (running >= ceiling)
             {
@@ -455,13 +479,17 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         job.Target = wanted;
         var running = new List<Task>();
         var budget = request.HostBudget ?? _hostBudget;
+        wanted = Math.Min(wanted, budget.ConnectionLimit(info.FinalUrl));
+        job.Target = wanted;
+        using var workers = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var workerToken = workers.Token;
 
         // Saved splits are bookkeeping, not permission slips for extra connections.
         // Queue every unfinished range; the current limit decides how many workers get chairs.
         foreach (var segment in segments.Where(s => !s.IsDone)) segment.Orphaned = true;
 
         while (running.Count < wanted && (TakeOrphan(segments) ?? SplitLargest(segments)) is { } extra)
-            running.Add(RunSegmentAsync(request, info, extra, handle, job, ct));
+            running.Add(RunSegmentAsync(request, info, extra, handle, job, workerToken));
 
         // Only a download that can grow has anything to measure.
         var ramp = Ramps(request) ? new Ramp(Interlocked.Read(ref job.Bytes)) : null;
@@ -492,7 +520,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 var add = ramp.Evaluate(
                     Interlocked.Read(ref job.Bytes), running.Count, Math.Min(ceiling, running.Count + budget.AvailableSlots(info.FinalUrl)),
                     Snapshot(segments).Sum(s => Math.Max(0, s.Remaining)),
-                    Volatile.Read(ref job.Refused) != 0);
+                    Volatile.Read(ref job.Refused) != 0,
+                    request.BandwidthLimiter is BandwidthLimiter limiter ? limiter.LimitBytesPerSecond : 0);
 
                 if (ramp.RetireTo is { } lower)
                 {
@@ -510,7 +539,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                         break;
                     }
 
-                    running.Add(RunExtraAsync(request, info, more, handle, job, ct));
+                    running.Add(RunExtraAsync(request, info, more, handle, job, workerToken));
                 }
 
                 if (!ramp.Done)
@@ -525,18 +554,21 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             else if (finished.IsCanceled)
                 failure ??= new OperationCanceledException(ct);
 
+            // Once integrity or another permanent failure is known, stop sibling reads.
+            // Downloading the other 98% before reporting that fact is not persistence.
+            if (failure is not null) workers.Cancel();
+
             // A connection that was turned away has not freed a slot; the server just showed
             // it has none to give, so its range waits for a worker that did finish. Only when
             // nothing else is running is it started at once, so it cannot be left behind.
             var turnedAway = finished is Task<bool> { IsCompletedSuccessfully: true } extra && !extra.Result;
 
-            // No new work once something has failed or the user paused: the remaining
-            // workers are left to finish or fail on their own, as before. A range an added
-            // connection was turned away from goes first.
+            // No new work once something has failed or the user paused. A range an added
+            // connection was turned away from goes first while the download is healthy.
             if (failure is null && !ct.IsCancellationRequested && running.Count < job.Target
                 && (!turnedAway || running.Count == 0)
                 && (TakeOrphan(segments) ?? SplitLargest(segments)) is { } stolen)
-                running.Add(RunSegmentAsync(request, info, stolen, handle, job, ct));
+                running.Add(RunSegmentAsync(request, info, stolen, handle, job, workerToken));
         }
 
         if (failure is not null)
@@ -558,7 +590,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             await RunSegmentAsync(request, info, segment, handle, job, ct, retries: 1).ConfigureAwait(false);
             return true;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException && segment.Completed == 0)
+        catch (Exception ex) when (ex is not (OperationCanceledException or InvalidOperationException
+                                   or HttpRequestException { StatusCode: HttpStatusCode.PreconditionFailed }) && segment.Completed == 0)
         {
             segment.Orphaned = true;
             Volatile.Write(ref job.Refused, 1);
@@ -722,6 +755,10 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             using var message = HttpProbe.BuildRequest(request);
             message.RequestUri = info.FinalUrl;
             message.Headers.Range = new RangeHeaderValue(requestedStart, requestedEnd);
+            if (EntityTagHeaderValue.TryParse(info.Validator, out var expectedTag) && !expectedTag.IsWeak)
+                message.Headers.IfMatch.Add(expectedTag);
+            else if (info.LastModified is { } modified)
+                message.Headers.IfUnmodifiedSince = modified;
 
             using var response = await _http
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, stall.Token)
@@ -731,6 +768,13 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
                 Volatile.Write(ref job.Refused, 1);
             RetryPolicy.EnsureSuccess(response);
+
+            // Preconditions ask a compliant server to refuse changed content. Also check
+            // its answer: a proxy that ignores them must not splice two file versions.
+            if (expectedTag is { IsWeak: false } && response.Headers.ETag?.ToString() != expectedTag.ToString()
+                || expectedTag is null && info.LastModified is { } originalModified
+                   && response.Content.Headers.LastModified is { } currentModified && originalModified != currentModified)
+                throw new InvalidOperationException("The remote file changed during download. Restart to fetch a consistent copy.");
 
             // A 200 here means the server decided to send the whole file down a segment
             // connection. Writing that at this segment offset would corrupt the output.

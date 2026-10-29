@@ -66,6 +66,7 @@ Copy-Item (Join-Path $projectRoot 'LICENSE') $payload
 Copy-Item (Join-Path $projectRoot 'PRIVACY.md') $payload
 New-Item -ItemType Directory -Path (Join-Path $payload 'docs') -Force | Out-Null
 Copy-Item (Join-Path $projectRoot 'docs\USER-GUIDE.md') (Join-Path $payload 'docs')
+& (Join-Path $PSScriptRoot 'write-engine-manifest.ps1') -PayloadPath $payload
 
 $signTool = $null
 if ($CertificateThumbprint) {

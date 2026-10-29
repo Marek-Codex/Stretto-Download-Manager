@@ -18,6 +18,9 @@ public sealed class BandwidthLimiter : IBandwidthLimiter
 
     public BandwidthLimiter(long bytesPerSecond = 0) => SetLimit(bytesPerSecond);
 
+    /// <summary>Zero means unlimited. The controller can avoid probing above an explicit ceiling.</summary>
+    public long LimitBytesPerSecond => Volatile.Read(ref _bytesPerSecond);
+
     public void SetLimit(long bytesPerSecond)
     {
         lock (_gate)

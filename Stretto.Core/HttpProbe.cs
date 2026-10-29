@@ -42,8 +42,10 @@ public static class HttpProbe
             SupportsRanges = supportsRanges && total is > 0,
             SuggestedFileName = request.FileName ?? ResolveFileName(response, finalUrl),
             ContentType = response.Content.Headers.ContentType?.MediaType,
-            Validator = response.Headers.ETag?.Tag
-                        ?? response.Content.Headers.LastModified?.ToString("R"),
+            // Weak tags permit semantically equivalent but byte-different representations.
+            // That is fine for a web cache. It is not permission to stitch their ranges.
+            Validator = response.Headers.ETag is { IsWeak: false } tag ? tag.ToString()
+                        : response.Content.Headers.LastModified?.ToString("R"),
             LastModified = response.Content.Headers.LastModified,
         };
     }

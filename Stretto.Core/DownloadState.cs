@@ -50,6 +50,7 @@ public sealed class DownloadState
                 || state.Version != 1
                 || state.Segments.Count == 0
                 || info.Validator is null
+                || System.Net.Http.Headers.EntityTagHeaderValue.TryParse(info.Validator, out var tag) && tag.IsWeak
                 || !SameResourceAddress(state.Url, info.FinalUrl)
                 || state.TotalLength != info.TotalLength
                 || state.Validator != info.Validator)
