@@ -9,11 +9,12 @@ reserved as an MSIX app, product ID `9NDPLDT131GP`. Reservation is not publicati
   [CONTRIBUTING.md](../CONTRIBUTING.md). Record optional-tool skips.
 - Review the staged diff for credentials, private URLs, generated output and local paths.
 - Keep the intended license explicit; the current license is all rights reserved.
-- Resolve the source-provenance question recorded in historical research before
-  describing the source or its distribution license as cleared for public release.
-  Branding edits do not replace that review or remove any required attribution.
-  The [scoped provenance review](PROVENANCE-REVIEW-2026-10-28.md) records the available
-  comparison, the missing historical reference and the remaining author question.
+- Review the [provenance assessment](PROVENANCE-REVIEW-2026-10-28.md). The available
+  comparison and author's screenshot-based recollection do not confirm reused
+  upstream source. Keep the limits explicit; do not claim legal clearance or
+  clean-room development, and preserve any attribution actually required.
+- Finalize permission to use the free binaries and account for third-party runtime
+  notices in the actual installer. The current placeholder license is not that work.
 - Create and connect the intended GitHub repository before enabling the app's GitHub
   release channel. Verify the release URL and actual assets, not just the repository name.
 - Use focused commits describing the real changes. Do not backdate development history.

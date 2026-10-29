@@ -45,11 +45,26 @@ Upstream snapshot: [source tree](https://github.com/subhra74/xdm/tree/e5a9ecda11
 
 ## What these results mean
 
+### Author's recollection
+
+Marek reports that, to the best of his knowledge, he supplied a screenshot of the
+installed extension popup as a visual reference, after which the implementation
+was AI-assisted and developed substantially further. He does not recall providing
+source code. This is the author's recollection, not a recovered transcript or
+proof of every input available during the original implementation.
+
+That account does not corroborate the older note's claim that upstream source was
+consulted or a particular expression copied. The older note alone should not be
+treated as a verified account of how development happened.
+
 No substantial verbatim block was confirmed by this scoped comparison. It does
 **not** detect all renamed, rearranged or adapted code, cover every older upstream
 version, establish independent authorship, or settle copyright/license obligations.
 The historical note's claim remains uncorroborated with the original reference
 unavailable. It should not be restated as either proven copying or proven clearance.
+No specific reused upstream source has been confirmed in this review. There is
+therefore no established basis here for declaring the entire app GPL-derived;
+that would be a broader conclusion than the evidence supports.
 
 The U.S. Copyright Office distinguishes protectable code expression from ideas,
 program logic, algorithms and methods. Shared behavior alone therefore does not
@@ -59,8 +74,9 @@ See [Copyright Office computer-program guidance](https://www.copyright.gov/regis
 
 ## Next steps
 
-1. Ask the author what material was actually reused, and recover the exact reference
-   source/version if available. Record the answer without inventing a clean-room story.
+1. Retain the author's recollection above. If the original conversation or exact
+   reference version becomes available, compare it with this record. Do not invent
+   a clean-room story or treat an unsupported historical note as a proven admission.
 2. If identifiable source was reused, review the applicable license and either
    comply with its terms or replace the affected implementation through a documented
    independent process. Renaming variables or deleting credit is not that process.

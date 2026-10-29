@@ -3,9 +3,11 @@
 Prepared for the first source publication. This file is a plan, not a claim that
 the repository or release is already live.
 
-The historical research includes an unresolved source-provenance/licensing question.
-Review that record before public distribution; removing product comparisons from
-UI/comments is not a licensing clearance. See [the release checklist](RELEASING.md).
+The [provenance assessment](PROVENANCE-REVIEW-2026-10-28.md) records the source
+comparison and Marek's recollection of a screenshot-based, AI-assisted implementation.
+No specific reused upstream source was confirmed. Keep those limits explicit.
+The current actionable licensing work is the free-binary permission and bundled
+third-party notices. See [the release checklist](RELEASING.md).
 
 ## Repository details
 
