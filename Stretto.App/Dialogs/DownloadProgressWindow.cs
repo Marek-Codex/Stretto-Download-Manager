@@ -11,9 +11,9 @@ namespace Stretto.App.Dialogs;
 
 /// <summary>
 /// A small window that follows one download, for anyone who likes to watch a big one
-/// arrive. Off by default: every row in the list already shows speed and time left. Built
-/// in code rather than XAML to match <see cref="BrowserSetupWindow"/>, and because it is
-/// one fixed layout that never branches.
+/// arrive. Off by default: every row already shows speed and time left. This code-built
+/// view adjusts its actions and details as the download changes state. The progress bar
+/// does not actually move faster when watched, but I understand the temptation.
 ///
 /// It watches a single <see cref="DownloadItem"/> and mirrors it. The item stays the source
 /// of truth, so closing this window has no effect on the transfer.

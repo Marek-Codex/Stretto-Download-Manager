@@ -5,8 +5,8 @@
 // instead is downloads.onDeterminingFilename, the earliest point a download can be seen.
 //
 // The important consequence: if the app cannot be reached, we must give the download back
-// to the browser rather than swallowing it. A download manager that silently eats downloads
-// when it is closed is worse than no download manager.
+// to the browser rather than swallowing it. We manage downloads; we do not eat them.
+// Yes, even when the app has gone to bed before the rest of us.
 //
 // This file is the Chromium half: the interception itself. Everything shared with Firefox
 // is in common.js, loaded first.
@@ -23,6 +23,7 @@
 // DownloadItem does not expose the HTTP method. Keep a short, bounded history of the
 // requests that can become downloads, without bodies or credentials. Session storage
 // survives service-worker suspension. If history is unavailable, keep it in the browser.
+// "Probably GET" is not enough information to replay somebody's form submission.
 const requestHistoryStore = api.storage.session;
 let requestHistoryWrites = Promise.resolve();
 let requestHistoryHealthy = true;
@@ -124,6 +125,7 @@ async function claim(item, url, suggest) {
     return giveBack(`a capture rule skips it (type "${extensionOf(url, filename) || 'none'}")`);
 
   // Keep the original response alive until the user/app has actually accepted it.
+  // A timeout is not a yes. Neither is our enthusiasm. Wait for the answer.
   const cookie = (await cookieHeaderFor(url)) || null;
 
 
@@ -159,6 +161,7 @@ async function claim(item, url, suggest) {
     return 'kept';
   }
   // Erasing is cosmetic. Its failure must not release a cancelled request as a new one.
+  // The browser's history row can stay untidy; the user's download cannot be the sacrifice.
   try { await api.downloads.erase({ id: item.id }); } catch { /* retain cancelled history */ }
   try { suggest(); } catch { /* cancellation already released it */ }
   return 'handled';

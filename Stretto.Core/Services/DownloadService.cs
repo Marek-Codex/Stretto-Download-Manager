@@ -2,7 +2,10 @@ using System.Collections.ObjectModel;
 
 namespace Stretto.Core;
 
-/// <summary>Owns the queue and drives <see cref="SegmentedDownloader"/> on its behalf.</summary>
+/// <summary>
+/// Owns the download list and coordinates its engines and queues. Windows may come and go;
+/// the transfer does not need an audience to keep working. The futon approves this design.
+/// </summary>
 public sealed partial class DownloadService
 {
     private readonly AppSettings _settings;
@@ -17,9 +20,9 @@ public sealed partial class DownloadService
     public QueueService Queues { get; } = new();
 
     /// <summary>
-    /// <paramref name="context"/> is where the service does its work: transfers report back
-    /// to it, and state is only touched from it, so nothing here needs a lock. The app passes
-    /// nothing and gets the UI thread's, which is current when the window builds the service.
+    /// <paramref name="context"/> serializes service/list updates: transfers report back
+    /// to it, and callers must use it for their own mutations too. Engine internals still
+    /// have their own synchronization. The app defaults to the current UI context.
     /// A host with no UI thread passes a <see cref="SerialSynchronizationContext"/> and makes
     /// its own calls to the service on that same context.
     /// </summary>
@@ -34,8 +37,8 @@ public sealed partial class DownloadService
 
     /// <summary>
     /// Cap on downloads transferring at once. A batch of 100 files at 8 connections each
-    /// would otherwise open 800 sockets to one host, which is how you get rate limited
-    /// rather than how you go faster.
+    /// is 800 potential workers without other limits. The shared host budget separately
+    /// limits file-download requests per hostname. Enthusiasm is not a network policy.
     /// </summary>
     public int MaxConcurrent => _settings.MaxConcurrentDownloads;
 
@@ -56,12 +59,12 @@ public sealed partial class DownloadService
     public ObservableCollection<DownloadItem> Items { get; } = [];
 
     /// <summary>
-    /// Raised on the UI thread when a download finishes, so the app can say so. The item is
-    /// already in its final state by the time this runs.
+    /// Raised on the service's context when a download finishes (the UI thread in the app).
+    /// The item is already in its final state by the time this runs.
     /// </summary>
     public event Action<DownloadItem>? Completed;
 
-    /// <summary>Raised on the UI thread when a download gives up.</summary>
+    /// <summary>Raised on the service's context when a download gives up.</summary>
     public event Action<DownloadItem>? Failed;
 
     /// <summary>Shared with the video dialog so page scraping reuses the same connection pool.</summary>

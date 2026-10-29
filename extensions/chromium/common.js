@@ -34,13 +34,14 @@ const config = () => api.storage.local.get(DEFAULTS);
 const appUrl = (cfg, path) => `http://127.0.0.1:${cfg.port}${path}`;
 
 // Stretto's default plus a few neighbours, so a port clash does not mean a settings trip.
+// Knock on the nearby doors and check the answer. Do not just move into the first one.
 const PORT_RANGE = [9615, 9616, 9617, 9618, 9619];
 
 // Every call to the app carries a deadline. Loopback should answer in milliseconds, so
 // these are far longer than a healthy request needs and far shorter than "stuck".
 // A missing timeout is not a slow request, it is a permanently pending promise: nothing
 // upstream can make progress, and in the capture path a download is being held open
-// against that promise.
+// against that promise. Waiting politely still needs an exit. Even I get to sleep eventually.
 const PING_TIMEOUT_MS = 1500;
 const RULES_TIMEOUT_MS = 5000;
 

@@ -4,9 +4,9 @@ using System.Text.Json.Serialization;
 namespace Stretto.Core;
 
 /// <summary>
-/// Persists the download list between runs. The bytes themselves already survive via the
-/// engine's per-file .stretto sidecars, so this only has to remember which downloads exist
-/// and what the user last did with them.
+/// Persists the download list between runs. Bytes live in the destination files; per-file
+/// .stretto sidecars track resumable progress. This list remembers which downloads exist and what
+/// the user last did with them. The guest list, not the luggage. Please keep both.
 /// </summary>
 public sealed class DownloadStore
 {
@@ -62,9 +62,10 @@ public sealed class DownloadStore
     /// <summary>
     /// Request headers that may be written to disk. An allowlist rather than a blocklist:
     /// sites name their tokens anything (x-auth, x-csrf-token, x-amz-security-token,
-    /// x-goog-...), so only headers known to carry no secret survive a restart. These are the
-    /// ones hotlink and CORS checks actually look at; anything else a download needed dies
-    /// with the session, like cookies do, and the Refresh link flow gets it back.
+    /// x-goog-...), so we retain a small set of ordinary request preferences and origin
+    /// context instead of trying to enumerate every possible credential header. Other
+    /// request headers die with the session; Refresh link can supply fresh context.
+    /// This is not a guarantee that the saved URL or arbitrary header values are public.
     /// </summary>
     private static readonly HashSet<string> Keepable = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -101,8 +102,9 @@ public sealed class DownloadStore
     /// <summary>
     /// The list in its persisted shape. Shared by the on disk list and by Export, so the
     /// two cannot drift -- and note what an Entry leaves out: cookies, referrer, user agent,
-    /// saved logins and any request header outside the keepable few never reach it, so an
-    /// exported list carries no session secrets.
+    /// saved logins and any request header outside the keepable few never reach it.
+    /// URLs can still contain access tokens, and errors can contain private details.
+    /// An export is useful, not magically safe to paste into a public issue. Slow blink.
     /// </summary>
     public static List<Entry> ToEntries(IEnumerable<DownloadItem> items) =>
         [.. items.Select(i => new Entry
@@ -129,8 +131,8 @@ public sealed class DownloadStore
             // ProxyPassword deliberately omitted: session secret, like cookies.
             Added = i.Added,
             CompletedAt = i.CompletedAt,
-            // Anything mid-flight is recorded as paused: on next launch it can be
-            // resumed from its sidecar, whereas "downloading" would be a lie.
+            // Record queued/running work as paused. The next process has no live workers yet;
+            // claiming "downloading" would be very confident of a JSON file.
             Status = i.Status is DownloadStatus.Downloading or DownloadStatus.Queued
                 ? DownloadStatus.Paused
                 : i.Status,
@@ -148,7 +150,8 @@ public sealed class DownloadStore
 
     public Task SaveAsync(IEnumerable<DownloadItem> items)
     {
-        // Snapshot observable UI state before moving serialization and IO to a worker.
+        // Snapshot UI-owned items before dispatching serialization and IO.
+        // The background worker gets a photograph, not permission to rearrange the room.
         var revision = Interlocked.Increment(ref _saveRevision);
         var entries = ToEntries(items);
         var path = ListPath;
@@ -166,6 +169,7 @@ public sealed class DownloadStore
         lock (_saveGate)
         try
         {
+            // A slower old save must not overwrite a newer one. Past-me can wait his turn.
             if (revision < _committedRevision) return;
             var json = JsonSerializer.Serialize(entries, Options);
             if (json == _lastWritten)

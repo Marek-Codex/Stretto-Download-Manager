@@ -484,9 +484,9 @@ public sealed class BrowserSetupWindow : Window
     }
 
     /// <summary>
-    /// Connected means the extension reached Stretto after this window opened, or a new one
-    /// was approved. Either is proof enough; an extension that was already paired before
-    /// the walkthrough will ping on its own schedule and show up too.
+    /// Detects fresh extension contact or a new approval, not the selected browser's identity.
+    /// Another browser can ring this bell, so the UI asks the user to check its own popup.
+    /// Encouraging news, yes. A passport check, no.
     /// </summary>
     private void CheckConnection()
     {

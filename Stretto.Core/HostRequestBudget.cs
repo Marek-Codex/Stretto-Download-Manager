@@ -2,7 +2,10 @@ using System.Net;
 
 namespace Stretto.Core;
 
-/// <summary>One host budget shared across file downloads, clients and proxy overrides.</summary>
+/// <summary>
+/// One connection budget per hostname, shared across downloads, clients and proxy overrides.
+/// A different HttpClient is not a fake moustache that gets us past the bouncer.
+/// </summary>
 public sealed class HostRequestBudget(Func<Uri, int> limitFor)
 {
     private sealed class State
@@ -74,7 +77,8 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
             }
             if (delay > TimeSpan.Zero)
             {
-                // Long server cooldowns remain cancellable and avoid Task.Delay's upper bound.
+                // Wait in bounded chunks so even an enormous server cooldown stays cancellable.
+                // "Try again next century" does not get to disable the Pause button.
                 try { await changed.WaitAsync(delay > TimeSpan.FromDays(1) ? TimeSpan.FromDays(1) : delay, ct).ConfigureAwait(false); }
                 catch (TimeoutException) { }
             }
@@ -88,8 +92,8 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
         lock (_gate)
         {
             var state = For(uri);
-            // Keep established useful transfers, but remember that the latest request
-            // exceeded what this host currently accepts. This is session-local.
+            // Leave useful transfers running; lower the ceiling for new arrivals for five minutes.
+            // The host asked for breathing room, not a dramatic evacuation. *ear flick*
             state.LearnedLimit = Math.Min(Limit(uri, state), Math.Max(1, state.Active - 1));
             state.LimitUntil = DateTimeOffset.UtcNow.AddMinutes(5);
             var until = RetryPolicy.RetryNotBefore(response) ?? DateTimeOffset.UtcNow.AddSeconds(1);
@@ -103,6 +107,8 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
         private int _disposed;
         public void Dispose()
         {
+            // One lease releases one slot, even if cleanup reaches it twice.
+            // We are counting connections, not inventing extra seats.
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             lock (owner._gate)
             {

@@ -29,6 +29,7 @@ public sealed partial class NewDownloadDialog : UserControl
 
     // ComboBox raises SelectionChanged while InitializeComponent is still running,
     // before the other named fields exist. Handlers must not touch them until then.
+    // The furniture has not arrived yet; please stop trying to sit on it.
     private readonly bool _ready;
 
     /// <summary>

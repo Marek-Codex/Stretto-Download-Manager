@@ -25,7 +25,6 @@ public sealed record MediaReport
     public string? Kind { get; init; }
 }
 
-/// <summary>A download the browser extension has handed over.</summary>
 /// <summary>
 /// Many links at once, from the extension's "all links" and "all images" commands. Sent as
 /// one request so the app can show one list to confirm, not a window per link.
@@ -39,6 +38,7 @@ public sealed record BatchHandoff
     public Dictionary<string, string>? Cookies { get; init; }
 }
 
+/// <summary>A download the browser extension has handed over.</summary>
 public sealed record HandoffRequest
 {
     public required string Url { get; init; }
@@ -89,11 +89,10 @@ public sealed record HandoffRequest
 /// run netsh to install a download manager is not acceptable. The HTTP surface here is a
 /// handful of routes, so hand-rolling it is cheaper than the dependency.
 ///
-/// Two things keep this from being an open door on the user's machine, which XDM's
-/// unauthenticated port 9614 was not:
-///   - it binds to loopback only, so nothing off-machine can reach it;
-///   - every request must carry the pairing token, and the CORS origin must be an extension.
-/// Without the token check any web page you visit could queue downloads on your machine.
+/// It binds to loopback and checks caller origins; protected routes also require the
+/// pairing token. Discovery, preflight and pairing have their own gates before a token
+/// exists. Originless protected calls still need the token. Keep those cases distinct:
+/// "it came from this computer" is not authentication, however homely the address looks.
 /// </summary>
 public sealed class HandoffListener : IDisposable
 {

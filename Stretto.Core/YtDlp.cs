@@ -164,7 +164,8 @@ public sealed partial class YtDlp(string? executable = null)
     /// caller treats as "no choice to offer" rather than as a failure.
     ///
     /// Done per video and on demand: a playlist of two hundred entries would otherwise mean
-    /// two hundred process launches before anything could be shown.
+    /// two hundred process launches before anything could be shown. A process parade is
+    /// not a loading strategy, however festive the task manager looks.
     /// </summary>
     public async Task<IReadOnlyList<MediaFormat>> ListFormatsAsync(string url, CancellationToken ct = default)
     {
@@ -317,7 +318,9 @@ public sealed partial class YtDlp(string? executable = null)
     {
         // Human-readable progress and destination logs can change, and another download
         // may finish in this folder concurrently. Only this invocation's after_move path
-        // establishes which file it produced (including an already-downloaded result).
+        // identifies its output candidate (including an already-downloaded result).
+        // Then validate the path below. "Newest file in the folder" is not a receipt;
+        // another download lives here too, and it would like its identity back.
         if (outputs.Count != 1)
             throw new InvalidDataException("yt-dlp did not identify exactly one finished file. No file was selected.");
         string? reported;

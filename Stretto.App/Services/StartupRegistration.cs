@@ -60,8 +60,9 @@ public static class StartupRegistration
     }
 
     /// <summary>
-    /// Adds or removes the entry. Rewritten every time it is enabled rather than only when
-    /// absent, so moving the executable does not leave a startup entry pointing at nothing.
+    /// Requests the packaged StartupTask, or updates the EXE's per-user Run entry.
+    /// Windows can refuse the packaged request; read back the actual state.
+    /// For EXE builds, rewrite the path when enabled so a moved app is not a ghost at login.
     /// </summary>
     public static async Task ApplyAsync(bool enabled)
     {
@@ -107,8 +108,8 @@ public static class StartupRegistration
     // ═══ Being launched by the browser extension ═══
     //
     // The extension's popup says "Stretto is not running" and, like XDM's, offers a button
-    // that starts it. The scheme is a per-user registry key rather than a machine-wide one:
-    // no elevation, and removing it is one key.
+    // that starts it. EXE builds register a per-user scheme; MSIX declares it in the manifest.
+    // No machine-wide registry excursion required. We can leave the admin hat on its hook.
 
     public const string ProtocolScheme = "stretto";
 

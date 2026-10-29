@@ -5,8 +5,8 @@ namespace Stretto.Core;
 
 /// <summary>
 /// Resume bookkeeping. Because workers write straight into the final file at their own
-/// offsets, the only thing that needs persisting is how far each segment got --
-/// there are no chunk files to track or merge.
+/// offsets, we persist segment progress plus the remote identity needed to trust those
+/// offsets next time. No chunk files to gather from the floor and glue together later.
 /// </summary>
 public sealed class DownloadState
 {
@@ -45,6 +45,7 @@ public sealed class DownloadState
 
             // Anything less than an exact match on size and validator means the remote
             // file may have changed underneath us. Restarting beats silent corruption.
+            // Yes, the address looks familiar. We are checking the contents' identity too.
             if (state is null
                 || state.Version != 1
                 || state.Segments.Count == 0

@@ -9,9 +9,9 @@ namespace Stretto.App.Services;
 /// The shared secret the browser extension must present, and the list of extensions allowed
 /// to have it.
 ///
-/// This exists because the handoff endpoint listens on loopback, and loopback is reachable
-/// by every page in every browser on the machine. Without a secret, any site you visit could
-/// quietly queue downloads. XDM shipped its port unauthenticated.
+/// The handoff endpoint listens on loopback, but browser content can attempt local requests.
+/// Pairing and request checks distinguish an allowed extension from an arbitrary caller.
+/// A local address is a location, not an invitation.
 ///
 /// The user never types the secret. The extension asks for it over <c>POST /pair</c>, and
 /// Stretto hands it over once — silently when the caller is Stretto's own bundled extension,

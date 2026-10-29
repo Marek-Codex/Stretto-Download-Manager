@@ -6,7 +6,7 @@ namespace Stretto.App.Dialogs;
 
 /// <summary>
 /// The handful of shapes every settings-like surface in Stretto is built from, so the
-/// windows stop inventing their own spacing.
+/// windows stop inventing their own spacing. One set of margins. We can all go home.
 ///
 /// A card groups related settings. Inside it, a row puts the setting's name and a short
 /// explanation on the left and its control on the right, the way Windows Settings does;

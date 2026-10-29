@@ -10,7 +10,7 @@
 //               response, so nothing is re-requested and nothing is lost.
 //
 // As in the Chromium build, if the app cannot be reached the download stays with the
-// browser. A download manager that eats downloads while it is closed is worse than none.
+// browser. We are allowed to be asleep. We are not allowed to take the download with us.
 //
 // Everything shared with Chromium is in common.js, loaded first.
 
@@ -74,8 +74,8 @@ async function decide(details) {
   if (details.statusCode < 200 || details.statusCode >= 300) return {};
 
   // A form POST cannot be repeated by the app from its address alone, so it stays with
-  // the browser. (The Chromium build leaves unwanted POSTs with the browser too, but one
-  // it hands to Stretto and gets back is re-issued by address, which loses the body.)
+  // the browser. Chromium also leaves non-GET or unknown-method downloads alone.
+  // The address is not the whole request. Please do not send half a sandwich.
   if (details.method !== 'GET') return {};
   if (!looksLikeDownload(details)) return {};
 

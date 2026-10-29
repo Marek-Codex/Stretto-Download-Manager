@@ -2,7 +2,10 @@ using Stretto.Core;
 
 namespace Stretto.App.Services;
 
-/// <summary>MSIX version directories change at update; unpacked extensions need a stable path.</summary>
+/// <summary>
+/// MSIX version directories move at update; unpacked extensions need a stable path.
+/// Give the browser an app-data address so it is not sending mail to the old apartment.
+/// </summary>
 internal static class BundledExtensions
 {
     public static string Root => StartupRegistration.IsPackaged

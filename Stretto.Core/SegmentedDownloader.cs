@@ -154,7 +154,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         {
             Proxy = socks5Proxy is null ? proxy : null,
             UseProxy = socks5Proxy is null && proxy is not NoWebProxy,
-            // Decompression and Range do not mix: a compressed body makes byte offsets meaningless.
+            // Range offsets describe the transferred representation. Automatic decompression
+            // would change those bytes underneath us. Same numbers, different furniture. No.
             AutomaticDecompression = DecompressionMethods.None,
             MaxConnectionsPerServer = MaxConnections * 2,
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
@@ -336,8 +337,9 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
         var job = new Job { Bytes = segments.Sum(s => s.Completed) };
 
-        // Preallocating on creation gives the filesystem one contiguous extent to work with
-        // and fails fast if the disk is short, instead of halfway through a 4 GB download.
+        // Ask the filesystem to reserve space up front where supported. This can expose
+        // a full disk early; it does not promise one contiguous extent or every future write.
+        // The disk is still allowed to have a personality. Unfortunately.
         using var handle = resumed
             ? File.OpenHandle(path, FileMode.Open, FileAccess.Write, FileShare.Read,
                 FileOptions.Asynchronous)
@@ -395,7 +397,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // Cosmetic: never fail a finished download over a timestamp.
+            // Cosmetic: the bytes arrived. A refused timestamp does not get to un-finish them.
         }
     }
 
@@ -407,7 +409,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
     private static string ResolvePath(DownloadRequest request, string fileName, RemoteFileInfo info) =>
         // A sidecar only earns the original path if it is a usable resume point for this
         // exact remote file. A stale sidecar beside an unrelated file must not turn the
-        // no-overwrite path into an overwrite.
+        // no-overwrite path into an overwrite. Familiar filename, entirely wrong guest.
         FilePaths.ClashFree(request.TargetDirectory, fileName, request.Overwrite,
             path => DownloadState.TryLoad(path, info) is not null,
             request.TagClashes ? SourceTag.For(request.Url) : null);
@@ -454,8 +456,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         var running = new List<Task>();
         var budget = request.HostBudget ?? _hostBudget;
 
-        // A saved split is bookkeeping, not permission to open another connection.
-        // Queue every unfinished range and start only as many workers as currently allowed.
+        // Saved splits are bookkeeping, not permission slips for extra connections.
+        // Queue every unfinished range; the current limit decides how many workers get chairs.
         foreach (var segment in segments.Where(s => !s.IsDone)) segment.Orphaned = true;
 
         while (running.Count < wanted && (TakeOrphan(segments) ?? SplitLargest(segments)) is { } extra)
@@ -656,8 +658,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 catch (Exception ex) when (ex is not OperationCanceledException
                                            && !RetryPolicy.IsPermanent(ex) && attempt < limit)
                 {
-                    // Any bytes already written stay written; the retry just re-requests
-                    // from CurrentOffset, so a dropped connection costs nothing but latency.
+                    // Keep committed bytes and retry from CurrentOffset. An unfinished read
+                    // may need fetching again; the whole file does not. Small mercy, nyaa~
                     if (segment.Completed > before)
                         attempt = 0;
                     attempt++;
@@ -774,6 +776,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
                     // Paused while we throttle and write: a low speed limit can hold a
                     // worker far longer than the stall timeout, and that is not a stall.
+                    // We asked it to slow down. Let's not file a complaint when it obeys.
                     stall.CancelAfter(Timeout.InfiniteTimeSpan);
 
                     if (request.BandwidthLimiter is { } limiter)

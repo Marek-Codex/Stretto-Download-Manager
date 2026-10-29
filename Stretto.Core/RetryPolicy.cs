@@ -11,9 +11,10 @@ public sealed class DownloadHttpException(HttpStatusCode status, DateTimeOffset?
 public static class RetryPolicy
 {
     /// <summary>
-    /// A failure that will come out the same way every time: a refused or expired link (4xx),
-    /// or a response that is not a download at all. Retrying those only repeats the error.
-    /// Timeouts, dropped connections and 5xx are the ones that can fix themselves.
+    /// Most 4xx responses and InvalidOperationException are treated as permanent here.
+    /// 408 and 429 are exceptions: waiting can help those, as it can dropped connections
+    /// and 5xx responses. Asking an expired link seventeen more times is not persistence;
+    /// it is just the same answer with a larger electricity bill.
     /// </summary>
     public static bool IsPermanent(Exception exception) =>
         exception is InvalidOperationException
@@ -46,6 +47,8 @@ public static class RetryPolicy
     {
         while (delay > TimeSpan.Zero)
         {
+            // Task.Delay has a finite range. The server's optimism apparently does not.
+            // Chunk the wait without losing cancellation between or during chunks.
             var part = delay > TimeSpan.FromDays(1) ? TimeSpan.FromDays(1) : delay;
             await Task.Delay(part, ct).ConfigureAwait(false);
             delay -= part;
