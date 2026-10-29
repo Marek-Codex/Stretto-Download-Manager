@@ -9,7 +9,7 @@ namespace Stretto.Core;
 /// <summary>
 /// A named, ordered set of downloads that runs as a unit, optionally on a timetable.
 ///
-/// This is the part of XDM the concurrency cap alone does not cover: "these forty files,
+/// A concurrency cap alone cannot express "these forty files,
 /// in this order, but only overnight".
 /// </summary>
 public sealed class DownloadQueue : INotifyPropertyChanged

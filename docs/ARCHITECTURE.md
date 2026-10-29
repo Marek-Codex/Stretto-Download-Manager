@@ -27,7 +27,7 @@ so the dialog toggles each child control instead (`SetScheduleEnabled`).
 Also done since: a full Settings screen (General, Network, Browser monitoring,
 Advanced), global speed limit, keep-awake and finish actions, server timestamps,
 app-owned capture rules, the per-download progress window, taskbar progress, and the
-XDM context-menu entries plus Copy as cURL (the exact request, for debugging elsewhere).
+browser context-menu entries plus Copy as cURL (the exact request, for debugging elsewhere).
 
 Distribution still needs work: the browser add-on is not store-installed, browser coverage
 is limited, and Firefox's regular-release install needs a signed add-on. See
@@ -35,8 +35,7 @@ is limited, and Firefox's regular-release install needs a signed add-on. See
 
 ## Design decisions worth keeping
 
-**Positional writes, no chunk files.** XDM writes each segment to its own temp file and
-merges them in a final pass — double the disk I/O and double the peak disk usage. Stretto
+**Positional writes, no chunk files.** Stretto
 preallocates the output file once and each worker does `RandomAccess.WriteAsync` at its own
 offset. No merge pass, and resume state is just a small sidecar JSON of per-segment byte
 counts.
@@ -88,13 +87,11 @@ status dot, and the monitoring switch sits in its flyout.
 than `HttpListener` — the latter needs a URL ACL registration (an admin `netsh` step) for
 most prefixes, and that is not an acceptable install step for a download manager.
 
-Two things keep it from being an open door, which XDM's unauthenticated port 9614 was not:
-it binds to loopback only, and every request must carry the pairing token *and* come from a
-`chrome-extension://` or `moz-extension://` origin. Loopback is reachable by every page in
-every browser on the machine, so without both checks any site you visit could queue
-downloads on your machine.
+The listener binds to loopback, checks origins and requires a pairing token on protected
+routes. Discovery, preflight and pairing have separate gates before a token exists.
+Originless protected requests still require the token; loopback alone is not authentication.
 
-The extension cannot use XDM's original approach: MV3 removed blocking `webRequest`.
+The Chromium extension cannot block requests through `webRequest` in its ordinary MV3 configuration.
 Download capture uses `downloads.onDeterminingFilename` to hold the browser's original
 request while Stretto decides whether to take it. If Stretto is unavailable or the user
 declines, the extension releases that same request back to the browser; this also preserves
@@ -121,8 +118,7 @@ Windows hashes paths as UTF-16, and UTF-8 is computed too so a wrong guess costs
 rather than breaking anything. Everything else gets a one-click Allow that defaults to Deny.
 Approved origins persist in `extensions.json`, so the prompt happens at most once.
 
-This is the part XDM gets wrong in the other direction: it needs no pairing because it
-authenticates nothing, so anything able to reach its port can queue downloads.
+Pairing supplies authentication separately from the network address.
 
 ## Persistence
 
@@ -142,7 +138,7 @@ live inside JavaScript where a DOM parser would not help either.
 
 **This does not need the extension.** Pasting a page URL works standalone, which covers the
 common case. The extension extends it to two places scraping cannot reach: pages behind a
-login (it supplies the cookies, which is what XDM's "Read cookies from browser" is for) and
+login (it supplies the relevant session cookies) and
 sites that construct media URLs at runtime, where only watching real network requests finds
 them.
 
@@ -200,9 +196,9 @@ than how you go faster. Everything above the cap sits in `Queued` and starts as 
 ## Settings
 
 `%LOCALAPPDATA%\Stretto\settings.json`, exposed through eight sections: General,
-Connections, Proxy, Browser, Capture rules, Passwords, System and Advanced. XDM's four were
-kept at first, and Browser monitoring grew into one long page doing three jobs (pairing,
-capture behaviour, capture rules); splitting by job is what made each page short.
+Connections, Proxy, Browser, Capture rules, Passwords, System and Advanced. These are
+grouped into pages by the job the user came to do. Components & about summarizes the
+product details; Help is in the sidebar/F1 and About Stretto is in More options.
 
 The dialog is built in code (`Dialogs/SettingsDialog.cs`) from three shapes in
 `Dialogs/FormKit.cs`: a card, a row (name and hint left, control right) and a stacked row
@@ -232,11 +228,10 @@ Changing the network settings rebuilds the HTTP stack, because the connect timeo
 the handler and cannot be changed in place. In-flight downloads keep the old client until
 they finish; new settings are for the next transfer, not a reason to interrupt a running one.
 
-**No temporary folder setting, deliberately.** XDM has one because it writes each segment to
-a temp file and merges at the end. Stretto writes positionally into the final file, so there
+**No temporary folder setting for segmented downloads.** Stretto writes positionally into the final file, so there
 is no temp stage to point anywhere — the setting would be a lie.
 
-**The app owns the capture rules**, as XDM does: which file types are taken over, which
+**The app owns the capture rules**: which file types are taken over, which
 media types are offered, the minimum media size and the excluded hosts all live in Browser
 monitoring. The extension fetches them from `GET /rules` on startup and every five minutes,
 and caches the last answer so it still behaves while the app is closed.
@@ -245,7 +240,7 @@ The alternative, keeping them in the extension's own options, -- means two copie
 disagree, and no way to see the rules without opening the browser. Fetching is one endpoint
 and removes the question entirely.
 
-The list is an **allowlist**, matching XDM: only listed types are taken over. An empty list
+The list is an **allowlist**: only listed types are taken over. An empty list
 means the rules have never been fetched, which is treated as capture-everything rather than
 capture-nothing, because failing closed would silently stop the extension working.
 
@@ -258,7 +253,7 @@ capture-nothing, because failing closed would silently stop the extension workin
   overrides, and Windows account authentication are present. Explicit PAC controls are
   not exposed; system mode follows the Windows proxy configuration.
 - **Media-format coverage.** HLS and DASH use ffmpeg; site extraction can use yt-dlp.
-  Adobe HDS is not implemented. See the [XDM gap audit](XDM-GAP-AUDIT.md).
+  Adobe HDS is not implemented.
 
 Site credentials are stored using Windows protection and editable under Settings →
 Passwords. Site credentials answer Basic and Digest HTTP challenges and are scoped to the

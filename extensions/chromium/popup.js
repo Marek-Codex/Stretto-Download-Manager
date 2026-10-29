@@ -56,7 +56,7 @@ function setStatus(message, kind = '') {
   status.className = kind;
 }
 
-// Same display name twice (master plus variants) gets XDM's "(n) name" prefix.
+// Duplicate display names (master plus variants) get a numbered prefix.
 function displayNames(shown) {
   const counts = new Map();
   for (const item of shown) counts.set(item.name, (counts.get(item.name) || 0) + 1);
@@ -169,9 +169,8 @@ async function showConnection() {
     });
     text.append(link);
   } else {
-    // The one thing worth offering when the app is not there is starting it, which is
-    // what XDM's error popup does. The app registers this scheme on every launch, so it
-    // works without the user having found the shortcut.
+    // Offer to start the app when it is absent. Its registered URI scheme means
+    // the user does not need to go hunting for the shortcut.
     text.textContent = 'Stretto is not running · ';
     const launch = document.createElement('a');
     launch.textContent = 'Start it';

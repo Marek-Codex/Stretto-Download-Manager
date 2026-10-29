@@ -147,8 +147,6 @@ connection setting, regardless of how many ranges its saved state contains.
 - [Building and contributing](CONTRIBUTING.md)
 - [Release checklist](docs/RELEASING.md)
 - [Architecture and design notes](docs/ARCHITECTURE.md): how each part works and why
-- [XDM gap audit](docs/XDM-GAP-AUDIT.md) and [XDM research](docs/XDM-RESEARCH.md)
-- [UI identity audit](docs/UI-IDENTITY-AUDIT.md): which parts of the interface are just a download manager, which are just WinUI, and which read as XDM in WinUI 3
 
 ## License
 

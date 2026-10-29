@@ -6,8 +6,7 @@ public sealed record DownloadOptions
     /// <summary>Explicit folder. Ignored when <see cref="SortByType"/> is set.</summary>
     public string? Directory { get; init; }
 
-    /// <summary>Route into a per-category subfolder of Downloads, as XDM's
-    /// "automatically select based on file type" does.</summary>
+    /// <summary>Route into a per-category subfolder of Downloads based on file type.</summary>
     public bool SortByType { get; init; } = true;
 
     /// <summary>Overrides the filename the server suggests.</summary>

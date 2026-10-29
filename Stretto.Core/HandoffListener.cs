@@ -130,8 +130,7 @@ public sealed class HandoffListener : IDisposable
     /// (chrome-extension://id) and returns the token to hand over, or null to refuse.
     ///
     /// This is what replaces making the user copy a token by hand: the extension asks, the
-    /// app decides. XDM needs no pairing at all because it authenticates nothing, which
-    /// means any page that can reach its port can queue downloads.
+    /// app decides. Only an approved extension should receive the token.
     /// </summary>
     public Func<string, Task<string?>>? PairRequested { get; set; }
 

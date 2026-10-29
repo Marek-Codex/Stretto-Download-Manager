@@ -46,7 +46,7 @@ the list falls back to Cookie, Referer and User-Agent.
 This only applies to media the extension watched go out. A link taken over from the
 downloads list has no request behind it, so it gets the three it always had. That is not
 an oversight on the extension's part: Chrome's downloads API does not say which request
-produced a download, so there is nothing to correlate. XDM has the same limit.
+produced a download, so correlation needs the separate request history.
 
 Known states, rather than surprises waiting to be found:
 
@@ -82,8 +82,7 @@ The toolbar icon opens a popup in the app's own palette:
 
 - **Connection line** under the name: Connected, Not paired (with a Connect link that
   brings up the app's Allow prompt), or Stretto is not running — with a **Start it** link,
-  which goes through the `stretto:` scheme the app registers on every launch. XDM's error
-  popup does the same with its own.
+  which goes through the `stretto:` scheme registered by the app or its package.
 - **Switch** in the header: the same capture on/off as the options page.
 - **Media on this page**, newest first: direct video and audio plus HLS/DASH playlists,
   watched through non-blocking `webRequest`. Clicking a row sends it with cookies, referrer
@@ -104,8 +103,7 @@ the media grabber. Segments stay extension-local: dozens per page would drown th
 ## The heartbeat
 
 The toolbar has to be right about two things — is the app running, and are the rules
-current — and neither can be right from a single check. XDM answers this with twelve
-alarms a minute, forever, which is why its extension is always slightly warm.
+current — and neither can be right from a single check.
 
 This one backs off instead: every 30 seconds while the app is unreachable, so starting it
 is noticed promptly, and every 5 minutes once it is up, where the download path is already

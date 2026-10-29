@@ -3,6 +3,10 @@
 Prepared for the first source publication. This file is a plan, not a claim that
 the repository or release is already live.
 
+The historical research includes an unresolved source-provenance/licensing question.
+Review that record before public distribution; removing product comparisons from
+UI/comments is not a licensing clearance. See [the release checklist](RELEASING.md).
+
 ## Repository details
 
 - Owner: `Marek-Codex`

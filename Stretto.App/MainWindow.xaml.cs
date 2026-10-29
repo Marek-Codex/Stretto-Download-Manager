@@ -770,6 +770,12 @@ public sealed partial class MainWindow : Window
     {
         if (args.InvokedItemContainer == BrowserNavItem)
             FlyoutBase.ShowAttachedFlyout(BrowserNavItem);
+        else if (args.InvokedItemContainer == HelpNavItem)
+        {
+            await Task.Yield();
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                async () => await ShowHelpAsync());
+        }
         else if (args.InvokedItemContainer == SettingsNavItem)
         {
             // Deferred until the pane has finished handling the click: opened inside it,
@@ -1439,11 +1445,23 @@ public sealed partial class MainWindow : Window
         await RemoveWithPromptAsync(shown, question, "Clear list", "Clear");
     }
 
-    private async void About_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
-        "Stretto Download Manager\n\n" +
-        $"Version {typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "unknown"}\n" +
-        "Segmented downloads over parallel connections, with resume.\n" +
-        "Part of the Plexus apps.");
+    private async void About_Click(object sender, RoutedEventArgs e) =>
+        await ShowInWindowAsync(new HelpAboutForm(about: true), "About Stretto", 560, 460);
+
+    private bool _helpOpen;
+    private async Task ShowHelpAsync()
+    {
+        if (_helpOpen) return;
+        _helpOpen = true;
+        try { await ShowInWindowAsync(new HelpAboutForm(about: false), "Stretto Help", 560, 460); }
+        finally { _helpOpen = false; }
+    }
+
+    private async void HelpAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        await ShowHelpAsync();
+    }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => ExitApplication();
 

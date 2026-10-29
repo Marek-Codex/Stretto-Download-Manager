@@ -283,14 +283,14 @@ function shouldSkip(cfg, url, filename, size, referrer) {
   // the user thinks of as "the site", the server is often an anonymous CDN.
   if (hostSkipped(host, rules.skipHosts) || hostSkipped(pageHost, rules.skipHosts)) return true;
 
-  // An allowlist, the way XDM does it: only listed types are taken over. An empty list
+  // An allowlist: only listed types are taken over. An empty list
   // means the rules have never been fetched, so capture everything rather than nothing.
   const type = extensionOf(url, filename);
   const allowed = rules.captureTypes || [];
   const media = rules.videoTypes || [];
 
-  // A site the user has said to always trust skips the allowlist, which is XDM's
-  // "matching hosts". The skip list above still wins: never-capture beats always-capture.
+  // An always-capture host skips the type allowlist. The skip list above still wins:
+  // never-capture beats always-capture.
   const trusted = hostAlways(host, rules.alwaysHosts) || hostAlways(pageHost, rules.alwaysHosts);
 
   // An empty type means the URL carries no extension, which is exactly what an API-style
@@ -318,7 +318,7 @@ async function cookieHeaderFor(url) {
 }
 
 /**
- * Greys the toolbar icon while capture is switched off, the way XDM does, so "why did the
+ * Greys the toolbar icon while capture is switched off, so "why did the
  * browser keep that download?" is answered by a glance at the toolbar.
  */
 async function showCaptureIcon(enabled) {
@@ -410,8 +410,7 @@ api.runtime.onStartup.addListener(async () => {
 // ═══ The heartbeat ═══
 //
 // Two things the toolbar has to be right about, and neither can be right from a single
-// check: is Stretto running, and are the rules current. XDM solves this with twelve
-// alarms a minute, forever, which is why XDM's extension is always slightly warm.
+// check: is Stretto running, and are the rules current.
 //
 // Polling an app that is already there is a wasted socket and a wasted worker wake-up, so
 // this backs off: often while the app is unreachable, so starting it is noticed within

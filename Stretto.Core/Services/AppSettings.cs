@@ -42,7 +42,7 @@ public sealed class AppSettings
     // single source of truth: the extension fetches them from GET /rules on startup, so
     // changing them in one place cannot leave the two disagreeing.
 
-    /// <summary>File types taken over from the browser. An allowlist, as XDM has.</summary>
+    /// <summary>File types taken over from the browser. Only listed types are captured.</summary>
     public List<string> CaptureTypes { get; set; } = [.. DefaultCaptureTypes];
 
     /// <summary>Media types the extension reports as grabbable when played.</summary>
@@ -54,8 +54,8 @@ public sealed class AppSettings
     /// A video served from /play?id=9182 as video/mp4 is invisible to an extension that
     /// only looks at file extensions, and a good number of sites serve media as
     /// application/octet-stream, which is on its own useless -- hence a list rather than a
-    /// check. Matched as a substring of the response's Content-Type, as XDM's media types
-    /// are. Empty falls back to the extension's own built-in table.
+    /// check. Matched as a substring of the response's Content-Type.
+    /// Empty falls back to the extension's own built-in table.
     /// </summary>
     public List<string> MediaTypes { get; set; } = [.. DefaultMediaTypes];
 
@@ -74,7 +74,7 @@ public sealed class AppSettings
     public List<string> SkipHosts { get; set; } = [.. DefaultSkipHosts];
 
     /// <summary>
-    /// Hosts whose downloads are taken whatever their type, as XDM's matching hosts are.
+    /// Hosts whose downloads are captured regardless of file type.
     ///
     /// The counterpart to the skip list: a site that is not on it is still filtered
     /// through the type allowlist, and adding a host here says "this one I trust, take
@@ -90,7 +90,7 @@ public sealed class AppSettings
     [
         "3gp", "7z", "avi", "bz2", "deb", "doc", "docx", "exe", "gz", "iso", "msi", "pdf",
         "ppt", "pptx", "rar", "rpm", "sit", "sitx", "tar", "jar", "xls", "xlsx", "xz", "zip",
-        // Not in XDM's list, but these are large model files people fetch from APIs and
+        // These are large model files people fetch from APIs and
         // there is no reason a download manager should ignore them.
         "safetensors", "gguf", "ckpt", "pt", "pth", "onnx", "bin", "appimage", "dmg",
     ];

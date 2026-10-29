@@ -18,6 +18,7 @@
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control" Key="N" Invoked="NewAccelerator_Invoked" />
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="SearchAccelerator_Invoked" />
+            <KeyboardAccelerator Key="F1" Invoked="HelpAccelerator_Invoked" />
         </Grid.KeyboardAccelerators>
 
         <!-- ═══ Title Bar ═══ -->
@@ -102,6 +103,9 @@
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="{StaticResource IconSettings}" />
                     </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="HelpNavItem" Content="Help" Tag="Help" SelectsOnInvoked="False">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE897;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 

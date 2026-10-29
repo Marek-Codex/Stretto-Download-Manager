@@ -107,7 +107,7 @@ public static class StartupRegistration
 
     // ═══ Being launched by the browser extension ═══
     //
-    // The extension's popup says "Stretto is not running" and, like XDM's, offers a button
+    // The extension's popup says "Stretto is not running" and offers a button
     // that starts it. EXE builds register a per-user scheme; MSIX declares it in the manifest.
     // No machine-wide registry excursion required. We can leave the admin hat on its hook.
 

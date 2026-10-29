@@ -190,7 +190,7 @@ function mediaKey(url) {
 /**
  * A name worth showing. Stream playlists are almost always called master.m3u8, index.m3u8
  * or manifest.mpd, and players' media URLs are often bare ids; the page title says what
- * the video actually is. XDM names streams this way. A real file name wins when there is one.
+ * the video actually is. A real file name wins when there is one.
  */
 /**
  * Whether a file name is one of the wildly random ones some servers hand out: long, with no
@@ -438,8 +438,8 @@ api.webRequest.onSendHeaders.addListener(trackRequest, {
   types: ['media', 'xmlhttprequest', 'other', 'object', 'main_frame', 'sub_frame'],
   // No extraHeaders. It only reveals what Chrome otherwise withholds -- Cookie, Referer and
   // Set-Cookie -- and UNREPLAYABLE strips all three, while Chrome documents that asking for
-  // it moves request handling onto a slower path. XDM needs it because it forwards the
-  // cookie from here; Stretto reads cookies from the cookie store instead.
+  // it moves request handling onto a slower path. Stretto reads cookies from the
+  // cookie store instead.
 }, ['requestHeaders']);
 
 api.webRequest.onHeadersReceived.addListener((details) => {

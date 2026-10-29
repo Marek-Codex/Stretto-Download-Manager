@@ -114,8 +114,7 @@ public static partial class MediaExtractor
         foreach (Match m in UrlInScript().Matches(html)) Consider(m.Groups[1].Value, "script");
         foreach (Match m in Anchor().Matches(html)) Consider(m.Groups[1].Value, "link");
 
-        // XDM numbers its findings "HTML Video (1)", "HTML Video (2)"; do the same, but say
-        // what kind of thing each one is so a stream is not mistaken for a plain file.
+        // Number findings within each media kind, so a stream is not mistaken for a plain file.
         var counters = new Dictionary<MediaKind, int>();
 
         return

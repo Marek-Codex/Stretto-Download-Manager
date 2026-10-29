@@ -323,6 +323,11 @@ public sealed partial class SettingsDialog
 
     private IEnumerable<UIElement> BuildAdvanced()
     {
+        yield return GroupTitle("About Stretto");
+        yield return Card(StackRow("Stretto Download Manager",
+            $"Version {Updates.CurrentText} · Made by Marek Codex · Part of Plexus Apps",
+            Hint("Less babysitting. More downloading. For a quick guide, choose Help in the sidebar or press F1. More options → About Stretto has the release and license details.")));
+
         _userAgent.Text = _settings.UserAgent;
         _ffmpegInstall.Click += async (_, _) => await InstallAsync(Tool.Ffmpeg, _ffmpegInstall, _ffmpegStatus);
         _ytDlpInstall.Click += async (_, _) => await InstallAsync(Tool.YtDlp, _ytDlpInstall, _ytDlpStatus);
@@ -333,7 +338,7 @@ public sealed partial class SettingsDialog
         RefreshComponents();
 
         yield return GroupTitle("Optional components");
-        yield return Hint("Plain downloads need nothing extra. These are for streams, converting and video sites. A copy already on your PATH is preferred.");
+        yield return Hint("Plain downloads need nothing extra. These tools handle streams, conversion and video sites. Stretto uses its installed copy when available, otherwise a copy on your PATH.");
         yield return new Border { Height = 8 };
         yield return Card(
             ComponentRow("ffmpeg", "Joins HLS and DASH streams, converts audio and video.", _ffmpegStatus, _ffmpegWinget, _ffmpegInstall),

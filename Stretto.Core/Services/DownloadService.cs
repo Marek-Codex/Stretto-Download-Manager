@@ -71,7 +71,7 @@ public sealed partial class DownloadService
     public HttpClient Http => _network.Http;
     public void SetSpeedLimit(long bytesPerSecond) => _bandwidthLimiter.SetLimit(bytesPerSecond);
 
-    /// <summary>Caption for the progress window, matching XDM's "No speed limit".</summary>
+    /// <summary>Speed-limit caption for the progress window.</summary>
     public string SpeedLimitLabel => _settings.SpeedLimitBytesPerSecond <= 0
         ? "No speed limit"
         : $"Limit {_settings.SpeedLimitBytesPerSecond / 1024:N0} KB/s";

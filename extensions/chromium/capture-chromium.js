@@ -1,7 +1,7 @@
 // Stretto browser integration.
 //
-// Manifest V3 removed blocking webRequest, so XDM's original trick -- intercept the request
-// before it starts and redirect it to the app -- is not available any more. What works
+// Manifest V3 removed general blocking webRequest for this extension, so intercepting a
+// request before it starts is not available here. What works
 // instead is downloads.onDeterminingFilename, the earliest point a download can be seen.
 //
 // The important consequence: if the app cannot be reached, we must give the download back
@@ -139,7 +139,7 @@ async function claim(item, url, suggest) {
       // A download that arrived by redirect usually has no referrer of its own, because
       // the referrer belongs to the request the browser was following, not the one that
       // landed. The URL it redirected from is the page it came off, and hotlink checks
-      // care about exactly that. XDM does this fallback for the same reason.
+      // can depend on that context.
       referrer: item.referrer || (item.finalUrl && item.finalUrl !== item.url ? item.url : null),
       userAgent: navigator.userAgent,
       size: size > 0 ? size : null,

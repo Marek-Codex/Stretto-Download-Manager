@@ -43,8 +43,7 @@ public sealed class LoginRow : INotifyPropertyChanged
 ///
 /// Encrypted with DPAPI under the current user, so the file is useless on another account
 /// or another machine. That is not a vault -- anything running as this user can read it
-/// back -- but it does mean a password never sits in plain text on disk, which is the bar
-/// XDM's "remember authentication for this website" fails to clear.
+/// back -- but saved passwords are encrypted rather than written as plaintext.
 /// </summary>
 public static class SiteCredentials
 {

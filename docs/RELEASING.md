@@ -9,6 +9,9 @@ reserved as an MSIX app, product ID `9NDPLDT131GP`. Reservation is not publicati
   [CONTRIBUTING.md](../CONTRIBUTING.md). Record optional-tool skips.
 - Review the staged diff for credentials, private URLs, generated output and local paths.
 - Keep the intended license explicit; the current license is all rights reserved.
+- Resolve the source-provenance question recorded in historical research before
+  describing the source or its distribution license as cleared for public release.
+  Branding edits do not replace that review or remove any required attribution.
 - Create and connect the intended GitHub repository before enabling the app's GitHub
   release channel. Verify the release URL and actual assets, not just the repository name.
 - Use focused commits describing the real changes. Do not backdate development history.

@@ -38,7 +38,7 @@ public sealed partial class MainWindow
         }
         catch (Exception exception)
         {
-            // Almost always the port already being taken, often by a running copy of XDM.
+            // Usually another process already owns the port.
             App.Log($"Could not start handoff listener: {exception}");
             _handoff = null;
         }
@@ -569,7 +569,7 @@ public sealed partial class MainWindow
             return "Off. Downloads stay with the browser.";
 
         if (_handoff?.IsListening != true)
-            return $"Port {_settings.HandoffPort} is taken, often by XDM. Close it or pick another port below.";
+            return $"Port {_settings.HandoffPort} is in use. Close the other application or pick another port below.";
 
         var paired = Pairing.Approved.Count();
         return paired switch

@@ -2,6 +2,10 @@
 
 Stretto is a Windows download manager. Plain HTTP/HTTPS and FTP downloads do not require optional video components or a paid account.
 
+For a quick guide inside the app, choose **Help** in the sidebar or press **F1**.
+**More options → About Stretto** shows the version, authorship, license and preview
+status. **Settings → Components & about** also summarizes the product details.
+
 ## Installation
 
 Use one installation format at a time:
