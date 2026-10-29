@@ -32,10 +32,13 @@ with the project. Confirm the destination is empty before pushing.
 - Release title: `Stretto 0.1.0 alpha 1 — first public preview`
 - Mark **pre-release**; do not mark this as a stable/latest production release.
 - Use [the prepared release notes](releases/v0.1.0-alpha.1.md).
-- Attach `Stretto-0.1.0.0-win-x64-setup.unsigned.exe` and the
-  `Stretto-0.1.0-alpha.1-SHA256SUMS.txt` beside it in `artifacts/0.1.0.0/`.
-- Do not attach the unsigned MSIX as a user-installable package. It remains a
-  local packaging review artifact until the identity and signing path are ready.
+- Attach the five files from `artifacts/0.1.0.0/test-signed/`: the test-signed EXE,
+  test-signed MSIX, public `Stretto-Test-Signing.cer`, `TESTING.md` and `SHA256SUMS.txt`.
+- The EXE is the simpler test download. The MSIX is optional and requires the
+  tester to explicitly trust the exact self-signed certificate; describe that
+  requirement and publish its SHA-256 fingerprint in the release notes.
+- Do not attach the unsigned MSIX, private keys, or a PFX. These test packages use
+  a development identity, not the final Microsoft Store identity.
 - GitHub generates source archives from the tag; do not upload `.git`, private
   backups, staging folders or app-data files as release assets.
 
@@ -43,6 +46,10 @@ Before creating the tag, ensure the release notes and source changes are committ
 the working tree is clean, and the asset checksums still match. The app's compiled
 version is 0.1.0; the alpha tag identifies this preview release without claiming
 a completed signed-installation acceptance pass.
+
+To regenerate the test-signed set after rebuilding unsigned packages, run
+`./installer/sign-test-packages.ps1`. The first run needs `-CreateCertificate`;
+later runs reuse the local testing certificate. It does not change trust stores.
 
 Keep the standalone GitHub update channel disabled during this alpha. Set it up
 when the intended public release channel is ready, then rebuild and verify its

@@ -52,6 +52,30 @@ For public distribution, Microsoft Store registration currently has a free onboa
 
 ## Acceptance before release
 
+### Optional self-signed test downloads
+
+After building both unsigned formats, `./installer/sign-test-packages.ps1 -CreateCertificate`
+creates a one-year test-only certificate in Current User / Personal with a
+non-exportable private key. It signs copies into `artifacts/<version>/test-signed/`,
+exports only a public `.cer`, and produces tester instructions and checksums.
+Later runs reuse the testing certificate; use `-CertificateThumbprint` if selecting
+between more than one. It never installs a certificate into a trust store.
+
+This path is intentionally separate from trusted release signing. It accepts the
+specific Windows untrusted-root result for the expected signer, but rejects other
+signature verification failures. Deliberately modified EXE/MSIX copies were rejected
+in the local verification check. Clean-machine installation is still untested.
+There is no trusted timestamp, so certificate expiry matters. Publish the `.cer`
+fingerprint with the release; never upload a PFX or private key. Testers must choose
+whether to trust the certificate for MSIX installation. The EXE does not require
+certificate import and can still show Windows reputation warnings.
+
+These packages use the development identity `MarekCodex.Stretto` / `CN=MarekCodex`.
+They are not signed Store builds and migration to the final Store identity is not
+guaranteed. The generated `TESTING.md` explains certificate trust and later removal.
+
+### Distribution acceptance
+
 Current results and the uninstall-test approval block are recorded in [finishing work](../docs/FINISHING-WORK-2026-10-28.md).
 
 Build success and MakeAppx validation are not installation tests. On a clean Windows account/VM without SDKs, verify both signed artifacts independently: launch, download, tray exit, opt-in startup and Windows disabling it, browser launch/pairing, optional tool installation, restart/resume, upgrade from a previous signed package, and uninstall. Check that browser extension paths remain valid after an MSIX upgrade. Test EXE installation/uninstallation in both interactive and silent modes. Do not label these packages release-ready until those checks and the engine/browser findings in the release review are resolved.
