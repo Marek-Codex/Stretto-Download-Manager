@@ -1,5 +1,10 @@
 # Stretto vs XDM — research notes
 
+> Historical research. The provenance assertions and license-version statement below
+> are not verified clearance. See the [October 28 evidence review](PROVENANCE-REVIEW-2026-10-28.md)
+> for the current source comparison and its limits. Original observations are retained
+> here as a record rather than silently corrected into a different development history.
+
 Working notes on Xtreme Download Manager, gathered to inform design decisions. **Not legal
 advice.** Every licence item needs the actual licence text read before release; this file
 records what was found and where the risk sits.

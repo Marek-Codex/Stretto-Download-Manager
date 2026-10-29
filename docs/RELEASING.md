@@ -12,6 +12,8 @@ reserved as an MSIX app, product ID `9NDPLDT131GP`. Reservation is not publicati
 - Resolve the source-provenance question recorded in historical research before
   describing the source or its distribution license as cleared for public release.
   Branding edits do not replace that review or remove any required attribution.
+  The [scoped provenance review](PROVENANCE-REVIEW-2026-10-28.md) records the available
+  comparison, the missing historical reference and the remaining author question.
 - Create and connect the intended GitHub repository before enabling the app's GitHub
   release channel. Verify the release URL and actual assets, not just the repository name.
 - Use focused commits describing the real changes. Do not backdate development history.
