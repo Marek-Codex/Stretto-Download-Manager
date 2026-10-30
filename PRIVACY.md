@@ -1,6 +1,6 @@
 # Stretto privacy notice
 
-Updated October 28, 2026. This notice covers the free Stretto desktop app and its bundled browser extensions.
+Updated October 30, 2026. This notice covers the free Stretto desktop app, its bundled browser extensions and the project website.
 
 ## Data stays on your computer
 
@@ -29,6 +29,14 @@ You can switch monitoring off in the extension or app, exclude sites, revoke pai
 - An antivirus scanner or a program configured as a completion action runs only according to your settings. Those programs have their own behavior and privacy policies.
 
 ## Reports, retention and removal
+
+The project website is hosted on GitHub Pages. Visiting it, downloading release
+files or using GitHub Issues contacts GitHub, which processes those interactions
+under its [privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+The project website adds no advertising, analytics or tracking scripts. GitHub
+issue reports are public; review their contents before posting. Visiting the
+website is separate from running the desktop app and does not cause the app to
+upload its history.
 
 Diagnostics are copied or shared only when you choose to do so. Logs can contain download URLs, filenames, paths and error details. Review diagnostic text and exported lists before sharing them publicly.
 

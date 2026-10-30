@@ -18,10 +18,12 @@ A Windows download manager with resumable transfers, adaptive connections, queue
 and browser integration. Built by Marek Codex as part of Plexus Apps.
 Start the download, let it do its thing, and stop negotiating with a progress bar.
 
-**Release status:** 0.1.0 is in preparation. The Microsoft Store app name is reserved,
-but the app is not published yet. Signed installation, clean-machine acceptance and
-browser compatibility checks remain release requirements. See the
-[release checklist](docs/RELEASING.md).
+**Release status:** [0.1.0-alpha.1](https://github.com/Marek-Codex/Stretto-Download-Manager/releases/tag/v0.1.0-alpha.1)
+is a public testing preview with self-signed installers. Basic clean-Windows
+EXE/MSIX package checks passed; broader browser, upgrade and interface acceptance
+remain open. The Microsoft Store app name is reserved but is not published yet.
+See the [release checklist](docs/RELEASING.md) and
+[project website](https://marek-codex.github.io/Stretto-Download-Manager/).
 
 *Stretto* is the fugue term for subject entries piling up overlapping and compressed —
 which is what a multi-connection download is.

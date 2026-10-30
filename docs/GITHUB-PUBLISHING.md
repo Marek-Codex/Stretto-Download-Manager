@@ -1,7 +1,11 @@
 # GitHub publishing setup
 
-Prepared for the first source publication. This file is a plan, not a claim that
-the repository or release is already live.
+The repository and first public alpha were published October 30, 2026:
+[source](https://github.com/Marek-Codex/Stretto-Download-Manager),
+[prerelease](https://github.com/Marek-Codex/Stretto-Download-Manager/releases/tag/v0.1.0-alpha.1),
+[homepage](https://marek-codex.github.io/Stretto-Download-Manager/).
+The instructions below record the publication workflow; they are not Store
+publication or stable-release acceptance claims.
 
 The [provenance assessment](PROVENANCE-REVIEW-2026-10-28.md) records the source
 comparison and Marek's recollection of a screenshot-based, AI-assisted implementation.
