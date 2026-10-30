@@ -33,8 +33,8 @@ if ($id -notmatch '^[0-9a-fA-F-]{36}$') { throw 'Sandbox did not return an ID.' 
 Set-Content -LiteralPath (Join-Path $artifacts 'sandbox-run-path.txt') -Value $run
 Write-Host "Disposable test session: $id; results: $outputDir"
 try {
-    & $wsb.Source connect --id $id
-    if ($LASTEXITCODE -ne 0) { throw 'Could not connect the guest user session.' }
+    # connect stays attached until the desktop closes; polling must run alongside it.
+    $connection = Start-Process -FilePath $wsb.Source -ArgumentList @('connect', '--id', $id) -WindowStyle Hidden -PassThru
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $report = Join-Path $outputDir 'result.json'
     do {

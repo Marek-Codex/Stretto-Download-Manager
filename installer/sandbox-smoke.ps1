@@ -52,9 +52,11 @@ function Check-InstalledEngine([string]$InstallPath, [string]$Label) {
     try {
         Start-Sleep -Seconds 3
         $output = Join-Path $harness 'downloads'
-        $check = Start-Process -FilePath (Join-Path $harness 'Stretto.Check.exe') -ArgumentList @('http://127.0.0.1:8127/fixture.bin', '-o', $output, '-n', '4') -PassThru -RedirectStandardOutput (Join-Path $harness 'stdout.txt') -RedirectStandardError (Join-Path $harness 'stderr.txt')
-        if (!$check.WaitForExit(45000)) { $check.Kill(); throw 'Installed engine download timed out.' }
-        Assert ($check.ExitCode -eq 0) "Installed $Label engine download failed."
+        # Start-Process -Wait preserves the exit code in Windows PowerShell 5.1.
+        # Waiting on a detached Process wrapper can report a null code after success.
+        # The host runner bounds the entire disposable test session.
+        $check = Start-Process -FilePath (Join-Path $harness 'Stretto.Check.exe') -ArgumentList @('http://127.0.0.1:8127/fixture.bin', '-o', $output, '-n', '4') -PassThru -Wait -RedirectStandardOutput (Join-Path $harness 'stdout.txt') -RedirectStandardError (Join-Path $harness 'stderr.txt')
+        Assert ($check.ExitCode -eq 0) "Installed $Label engine download failed (exit $($check.ExitCode))."
         $file = @(Get-ChildItem $output -Filter '*.bin' -File)
         Assert ($file.Count -eq 1) 'Expected one downloaded fixture.'
         $bytes = [IO.File]::ReadAllBytes($file[0].FullName)
