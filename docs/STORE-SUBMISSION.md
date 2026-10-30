@@ -78,3 +78,12 @@ The corrected package passed Partner Center's initial package validation and was
 saved in Submission 1 for Windows Desktop x64. The remaining upload warning
 is the restricted `runFullTrust` capability, which needs certification approval.
 This is upload acceptance, not certification or proof of runtime compatibility.
+
+English listing description, short description, initial feature, developer and
+copyright fields were saved. Screenshots are still required. Submission options
+were saved with manual publishing hold and a sub-500-character runFullTrust
+justification; the overview marked this section Complete.
+
+Pricing was configured at USD 0 for the default worldwide market group and
+saved as a draft. IARC completion is pending permission: its form states that
+Microsoft shares the publisher display name and account email with IARC.
