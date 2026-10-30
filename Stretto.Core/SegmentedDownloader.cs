@@ -60,6 +60,14 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
     /// <summary>Not worth opening more connections when the rest should take less than this.</summary>
     private const double RampMinimumRemainingSeconds = 5;
 
+    /// <summary>How long a settled download runs before checking whether more would help now.
+    /// A failed check doubles the wait, up to <see cref="RevisitIntervalMax"/>.</summary>
+    internal static TimeSpan RevisitInterval { get; set; } = TimeSpan.FromMinutes(3);
+    internal static readonly TimeSpan RevisitIntervalMax = TimeSpan.FromMinutes(24);
+
+    /// <summary>A revisit is only worth it with at least this long still to go.</summary>
+    internal static double RevisitMinimumRemainingSeconds { get; set; } = 60;
+
     /// <summary>
     /// Known speed limits stop the ramp directly. Unknown bottlenecks are detected by
     /// comparing throughput before and after each bounded connection increase.
@@ -86,9 +94,53 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         private bool _probing;
         private int _connectionsBefore;
         private bool _marginalSample;
+        private bool _revisiting;
+        private TimeSpan _revisitGap = RevisitInterval;
 
         public bool Done { get; private set; }
         public int? RetireTo { get; private set; }
+
+        /// <summary>
+        /// When a settled ramp should knock again, or null if it should not: the server
+        /// refused, the user's limit is the cap, or there is too little left to bother.
+        /// "This is as fast as it goes" was true when measured. Networks and servers change
+        /// their minds over a long download, so the claim gets re-checked, politely.
+        /// </summary>
+        public TimeSpan? RevisitAfter { get; private set; }
+
+        /// <summary>Starts a one-connection probe on a settled download.</summary>
+        public void Revisit(long bytes) => RevisitAt(_clock.Elapsed, bytes);
+
+        internal void RevisitAt(TimeSpan now, long bytes)
+        {
+            _lastBytes = bytes;
+            _lastAt = now;
+            _probing = false;
+            _marginalSample = false;
+            _revisiting = true;
+            RetireTo = null;
+            RevisitAfter = null;
+            Done = false;
+        }
+
+        /// <summary>Settles, and decides whether and when to try again.</summary>
+        private void Settle(bool mayRevisit, bool stepFailed = false)
+        {
+            Done = true;
+            if (!mayRevisit)
+            {
+                RevisitAfter = null;
+                return;
+            }
+
+            // A revisit that found nothing backs off further each time; one that found
+            // speed earns the normal interval back. Knocking, not hammering.
+            _revisitGap = stepFailed && _revisiting
+                ? TimeSpan.FromTicks(Math.Min(_revisitGap.Ticks * 2, RevisitIntervalMax.Ticks))
+                : RevisitInterval;
+            RevisitAfter = _revisitGap;
+            _revisiting = false;
+        }
 
         /// <returns>How many connections to open now.</returns>
         public int Evaluate(long bytes, int running, int ceiling, long remaining, bool refused, long speedLimit = 0)
@@ -104,7 +156,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             if (refused)
             {
                 RetireTo = Math.Max(1, _connectionsBefore > 0 ? _connectionsBefore : running / 2);
-                Done = true;
+                Settle(mayRevisit: false);
                 return 0;
             }
 
@@ -112,7 +164,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             // Leave a little measurement tolerance and keep the connections that got here.
             if (speedLimit > 0 && rate >= speedLimit * .95)
             {
-                Done = true;
+                Settle(mayRevisit: false);
                 return 0;
             }
 
@@ -129,7 +181,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 if (rate < _rateBefore * RampGain)
                 {
                     RetireTo = _connectionsBefore;
-                    Done = true;
+                    Settle(mayRevisit: remaining / Math.Max(rate, 1) >= RevisitMinimumRemainingSeconds, stepFailed: true);
                     return 0;
                 }
                 _probing = false;
@@ -140,25 +192,29 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             // own stall recovery; the controller does not send a search party after them.
             if (rate <= 0) return 0;
 
+            // At the ceiling, a later look may find it raised (a host cooling down after a 429).
             if (running >= ceiling)
             {
-                Done = true;
+                Settle(mayRevisit: remaining / rate >= RevisitMinimumRemainingSeconds);
                 return 0;
             }
 
-            if (rate > 0 && remaining / rate < RampMinimumRemainingSeconds)
+            if (remaining / rate < RampMinimumRemainingSeconds)
             {
-                Done = true;
+                Settle(mayRevisit: false);
                 return 0;
             }
 
             _rateBefore = rate;
             _connectionsBefore = running;
             _probing = true;
-            return Math.Min(ceiling - running, Math.Max(2, running / 2));
+
+            // A revisit adds one connection, not a batch: the question is whether the
+            // situation changed, and one extra socket answers it without a stampede.
+            return _revisiting ? 1 : Math.Min(ceiling - running, Math.Max(2, running / 2));
         }
 
-        public void Stop() => Done = true;
+        public void Stop() => Settle(mayRevisit: false);
     }
 
     /// <summary>
@@ -184,8 +240,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
             MaxConnectionsPerServer = MaxConnections * 2,
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
             ConnectTimeout = TimeSpan.FromSeconds(Math.Clamp(connectTimeoutSeconds, 5, 300)),
-            AllowAutoRedirect = true,
-            MaxAutomaticRedirections = 10,
+            // Redirects are followed by SafeRedirects, which keeps the browser session on its site.
+            AllowAutoRedirect = false,
             PreAuthenticate = credentials is not null || useWindowsCredentials,
             ConnectCallback = socks5Proxy is null ? null : (context, cancellationToken) =>
                 ConnectThroughSocks5Async(socks5Proxy, context.DnsEndPoint, cancellationToken),
@@ -207,7 +263,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
         // Overall timeouts are the caller's job via CancellationToken; a long download
         // must not trip the HttpClient stopwatch.
-        return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        return new HttpClient(new SafeRedirects(handler)) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
     private static async ValueTask<Stream> ConnectThroughSocks5Async(
@@ -517,6 +573,14 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                 if (failure is not null || ct.IsCancellationRequested || ramp is null)
                     continue;
 
+                if (ramp.Done)
+                {
+                    // A settled ramp's revisit came due: take a fresh baseline, measure next tick.
+                    ramp.Revisit(Interlocked.Read(ref job.Bytes));
+                    tick = Task.Delay(RampInterval, ct);
+                    continue;
+                }
+
                 var add = ramp.Evaluate(
                     Interlocked.Read(ref job.Bytes), running.Count, Math.Min(ceiling, running.Count + budget.AvailableSlots(info.FinalUrl)),
                     Snapshot(segments).Sum(s => Math.Max(0, s.Remaining)),
@@ -544,6 +608,8 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
 
                 if (!ramp.Done)
                     tick = Task.Delay(RampInterval, ct);
+                else if (ramp.RevisitAfter is { } revisit)
+                    tick = Task.Delay(revisit, ct);
                 continue;
             }
 
@@ -696,7 +762,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
                     if (segment.Completed > before)
                         attempt = 0;
                     attempt++;
-                    var backoff = TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 1));
+                    var backoff = RetryPolicy.Backoff(attempt);
                     await RetryPolicy.WaitAsync(RetryPolicy.DelayFor(ex, backoff), ct).ConfigureAwait(false);
                 }
             }
@@ -752,8 +818,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         {
             var requestedStart = segment.CurrentOffset;
             var requestedEnd = segment.End;
-            using var message = HttpProbe.BuildRequest(request);
-            message.RequestUri = info.FinalUrl;
+            using var message = HttpProbe.BuildRequest(request, info.FinalUrl);
             message.Headers.Range = new RangeHeaderValue(requestedStart, requestedEnd);
             if (EntityTagHeaderValue.TryParse(info.Validator, out var expectedTag) && !expectedTag.IsWeak)
                 message.Headers.IfMatch.Add(expectedTag);
@@ -861,8 +926,7 @@ public sealed class SegmentedDownloader(HttpClient? http = null, int maxRetriesP
         var budget = request.HostBudget ?? _hostBudget;
         using var lease = await budget.AcquireAsync(info.FinalUrl, ct).ConfigureAwait(false);
 
-        using var message = HttpProbe.BuildRequest(request);
-        message.RequestUri = info.FinalUrl;
+        using var message = HttpProbe.BuildRequest(request, info.FinalUrl);
 
         using var response = await _http
             .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct)

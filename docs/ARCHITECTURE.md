@@ -106,17 +106,16 @@ is malformed since a 204 must have no body) desyncs the client parser, and every
 request on that socket reads the previous response. The listener answers preflight as a
 `200` with a real body and supports keep-alive properly.
 
-**Pairing is automatic, and the token is never shown to anyone.** The extension scans a
+**Pairing asks once, and the token is never shown to anyone.** The extension scans a
 small port range for `GET /hello`, then asks for a token with `POST /pair`. Both run ahead
 of the token gate, and both still demand a real extension origin, which a web page cannot
 forge.
 
-Stretto answers `/pair` silently when the caller is its own bundled extension, recognised by
-the id Chromium derives deterministically from the extension folder's absolute path
-(`Pairing.ComputeId`: first 16 bytes of SHA-256 over the path, nibbles mapped onto a..p).
-Windows hashes paths as UTF-16, and UTF-8 is computed too so a wrong guess costs a prompt
-rather than breaking anything. Everything else gets a one-click Allow that defaults to Deny.
-Approved origins persist in `extensions.json`, so the prompt happens at most once.
+Every extension the app has not approved yet, its own bundled one included, gets a
+one-click Allow that defaults to Deny. Approved origins and the shared token persist
+together in `pairing-state.json` (an older `extensions.json`/`pairing.txt` is migrated once),
+so the prompt happens once per extension. Revoking one rotates the token, which cuts off
+every copy of the old one, prompts still pending included.
 
 Pairing supplies authentication separately from the network address.
 

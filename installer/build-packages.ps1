@@ -63,9 +63,12 @@ if (Test-Path $xpi) { Remove-Item -LiteralPath $xpi }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($firefox, $xpi)
 Copy-Item (Join-Path $projectRoot 'LICENSE') $payload
+Copy-Item (Join-Path $projectRoot 'NOTICE') $payload
 Copy-Item (Join-Path $projectRoot 'PRIVACY.md') $payload
 New-Item -ItemType Directory -Path (Join-Path $payload 'docs') -Force | Out-Null
 Copy-Item (Join-Path $projectRoot 'docs\USER-GUIDE.md') (Join-Path $payload 'docs')
+Copy-Item (Join-Path $projectRoot 'docs\LICENSING.md') (Join-Path $payload 'docs')
+& (Join-Path $PSScriptRoot 'write-third-party-notices.ps1') -PayloadPath $payload
 & (Join-Path $PSScriptRoot 'write-engine-manifest.ps1') -PayloadPath $payload
 
 $signTool = $null
@@ -121,6 +124,24 @@ if ($Format -in @('Both', 'Msix')) {
         Replace('@PUBLISHER_DISPLAY@', [System.Security.SecurityElement]::Escape($PublisherDisplayName)).
         Replace('@VERSION@', $packageVersion)
     Set-Content -LiteralPath (Join-Path $msixStage 'AppxManifest.xml') -Value $manifest -Encoding utf8
+    # Packaged resource lookup loads resources.pri, while the EXE uses Stretto.App.pri.
+    # Re-index the already merged app/WinUI resources under the package identity.
+    # Indexing every loose PRI again creates conflicting theme entries instead.
+    $makePri = Find-SdkTool 'makepri.exe'
+    $priInput = Join-Path $stagingRoot 'pri-input'
+    New-Item -ItemType Directory -Path $priInput | Out-Null
+    Copy-Item -LiteralPath (Join-Path $payload 'Stretto.App.pri') -Destination $priInput
+    $priConfig = Join-Path $stagingRoot 'priconfig.xml'
+    Set-Content -LiteralPath $priConfig -Encoding utf8 -Value '<resources targetOsVersion="10.0.0" majorVersion="1"><index root="\" startIndexAt="\"><indexer-config type="folder" foldernameAsQualifier="true" filenameAsQualifier="true" qualifierDelimiter="." /><indexer-config type="PRI" /></index></resources>'
+    $resources = Join-Path $msixStage 'resources.pri'
+    Invoke-Checked $makePri @('new', '/pr', $priInput, '/cf', $priConfig, '/in', $IdentityName,
+        '/mn', (Join-Path $msixStage 'AppxManifest.xml'), '/of', $resources, '/o')
+    $priDump = Join-Path $stagingRoot 'resources.xml'
+    Invoke-Checked $makePri @('dump', '/if', $resources, '/of', $priDump, '/o')
+    $resourceText = Get-Content -LiteralPath $priDump -Raw
+    if ($resourceText -notmatch 'themeresources\.(xaml|xbf)' -or $resourceText -notmatch 'MainWindow\.xbf') {
+        throw 'The MSIX resource index is missing WinUI themes or the app window.'
+    }
     $msixPath = Join-Path $artifactRoot "Stretto-$packageVersion-win-x64$suffix.msix"
     Invoke-Checked $makeAppx @('pack', '/d', $msixStage, '/p', $msixPath, '/o')
     Sign-Artifact $msixPath

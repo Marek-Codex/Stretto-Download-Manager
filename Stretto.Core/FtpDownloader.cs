@@ -45,7 +45,7 @@ public sealed class FtpDownloader
 
         Directory.CreateDirectory(request.TargetDirectory);
 
-        var name = SafeName(request.FileName is { Length: > 0 } chosen
+        var name = FilePaths.SafeName(request.FileName is { Length: > 0 } chosen
             ? chosen
             : Path.GetFileName(remotePath));
         var identity = new FtpResumeState
@@ -192,18 +192,6 @@ public sealed class FtpDownloader
             ConnectionsUsed = 1,
             WasResumed = resumed,
         };
-    }
-
-    /// <summary>A server controls this name, so it does not get to pick the path.</summary>
-    private static string SafeName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return "download";
-
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-            name = name.Replace(invalid, '_');
-
-        return name;
     }
 
     /// <summary>The command socket, and the PASV dance that opens data sockets.</summary>
@@ -359,6 +347,11 @@ public sealed class FtpDownloader
 
         private async Task<Reply> SendAsync(string command, CancellationToken ct)
         {
+            // A %0D%0A in the URL decodes to a line break, and a line break on the control
+            // channel is a second command the user never asked for. No legitimate path has one.
+            if (command.AsSpan().IndexOfAny('\r', '\n', '\0') >= 0)
+                throw new IOException("This FTP address contains a line break, which FTP cannot carry safely.");
+
             await _writer!.WriteAsync(command.AsMemory(), ct).ConfigureAwait(false);
             await _writer.WriteAsync("\r\n".AsMemory(), ct).ConfigureAwait(false);
 

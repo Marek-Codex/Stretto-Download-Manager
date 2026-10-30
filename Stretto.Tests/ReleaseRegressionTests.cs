@@ -1,3 +1,4 @@
+using System.Net;
 using System.Diagnostics;
 using System.Text.Json;
 using Stretto.Core;
@@ -20,8 +21,210 @@ public static partial class Program
         await runner.Run("rejects missing, ambiguous and out-of-folder yt-dlp results", YtDlpValidatesOutput);
         await runner.Run("keeps concurrent yt-dlp results separate", YtDlpConcurrentResults);
         await runner.Run("protects proxy passwords and migrates old settings", ProtectsProxySettings);
+        await runner.Run("keeps suggested file names inside the target folder", ConfinesSuggestedNames);
+        await runner.Run("reads helper checksums from publisher listings", ReadsToolChecksums);
+        await runner.Run("marks finished files as downloaded from the internet", MarksFromInternet);
+        await runner.Run("keeps browser cookies on their own site across redirects", ScopesSessionToSite);
+        await runner.Run("confines captured credentials to the exact origin", RedirectCredentialBoundaries);
+        await runner.Run("requires fresh approval after revoking an extension", PairingRevocation);
+        await runner.Run("keeps https cookies off http links in a batch", ScopesBatchCookies);
+        await runner.Run("refuses FTP addresses that smuggle a second command", RefusesFtpLineBreaks);
+        await runner.Run("imports lists paused and without file ownership", ImportsWithoutAuthority);
         if (Environment.GetEnvironmentVariable("STRETTO_TEST_YTDLP") is { Length: > 0 })
             await runner.Run("downloads and reopens a local fixture with the real yt-dlp", RealYtDlpOutput);
+    }
+
+    private static Task ConfinesSuggestedNames()
+    {
+        using var folder = new TempFolder();
+        foreach (var hostile in new[] { @"..\..\evil.exe", "../evil.exe", @"C:\Windows\evil.exe", "..", "CON", "nul.txt", "name. . ." })
+        {
+            var path = FilePaths.ClashFree(folder.Path, hostile, overwrite: true);
+            Assert.Equal(Path.GetFullPath(folder.Path), Path.GetDirectoryName(Path.GetFullPath(path)), $"'{hostile}' stays in the folder");
+            var name = Path.GetFileName(path);
+            Assert.True(name.Split('.')[0] is not ("CON" or "nul") && !name.EndsWith('.'), $"'{hostile}' became a plain file name, not '{name}'");
+        }
+
+        Assert.Equal("report.pdf", FilePaths.SafeName("report.pdf"), "an ordinary name is untouched");
+        Assert.Equal("download", FilePaths.SafeName("  "), "a blank name falls back");
+        return Task.CompletedTask;
+    }
+
+    private sealed class RedirectingHandler : HttpMessageHandler
+    {
+        public List<(Uri Url, string? Cookie, string? Token)> Seen { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Seen.Add((request.RequestUri!,
+                request.Headers.TryGetValues("Cookie", out var c) ? c.Single() : null,
+                request.Headers.TryGetValues("X-Signed", out var t) ? t.Single() : null));
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request };
+            var next = request.RequestUri!.AbsolutePath switch
+            {
+                "/start" => "https://dl.example.test/hop",
+                "/hop" => "https://cdn.other.test/file",
+                "/file" => "https://www.example.test/back",
+                _ => null,
+            };
+            if (next is not null)
+            {
+                response.StatusCode = HttpStatusCode.Found;
+                response.Headers.Location = new Uri(next);
+            }
+            return Task.FromResult(response);
+        }
+    }
+
+    private static async Task ScopesSessionToSite()
+    {
+        var inner = new RedirectingHandler();
+        using var client = new HttpClient(new SafeRedirects(inner));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://www.example.test/start");
+        request.Headers.TryAddWithoutValidation("Cookie", "session=SECRET");
+        request.Headers.TryAddWithoutValidation("X-Signed", "abc");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode, "followed to the end");
+        Assert.Equal(4, inner.Seen.Count, "four hops");
+        Assert.True(inner.Seen[1].Cookie is null, "a sibling subdomain does not inherit captured cookies");
+        Assert.True(inner.Seen[2].Cookie is null && inner.Seen[2].Token is null, "another site gets no session");
+        Assert.True(inner.Seen[3].Cookie is null, "coming back does not restore it");
+        Assert.True(!SafeRedirects.SameOrigin(new Uri("https://example.test/"), new Uri("http://example.test/")), "no downgrade");
+    }
+
+    private static Task MarksFromInternet()
+    {
+        using var folder = new TempFolder();
+        var path = Path.Combine(folder.Path, "setup.exe");
+        File.WriteAllText(path, "x");
+        FilePaths.MarkFromInternet(path, "https://cdn.example.test/setup.exe?token=secret", "https://example.test/page");
+        var zone = File.ReadAllText(path + ":Zone.Identifier");
+        Assert.True(zone.Contains("ZoneId=3"), "internet zone");
+        Assert.True(zone.Contains("HostUrl=https://cdn.example.test/setup.exe") && !zone.Contains("secret"), "host recorded without its token");
+        foreach (var url in new[] { "ftp://user:password@example.test/file.zip", "https://user:p%40ss@example.test/file.zip?secret=yes#private", "https://user@example.test/file.zip" })
+        {
+            FilePaths.MarkFromInternet(path, url, url);
+            zone = File.ReadAllText(path + ":Zone.Identifier");
+            Assert.True(zone.Contains("ZoneId=3") && zone.Contains("example.test/file.zip"), "mark and public path retained");
+            Assert.True(!zone.Contains("user") && !zone.Contains("password") && !zone.Contains("p%40ss") && !zone.Contains("secret") && !zone.Contains("private"), "host and referrer metadata omit credentials, query and fragment");
+        }
+        return Task.CompletedTask;
+    }
+
+    private sealed class CredentialRedirectHandler(Uri destination) : HttpMessageHandler
+    {
+        public Dictionary<string, string>? FinalHeaders;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request };
+            if (request.RequestUri!.AbsolutePath == "/start")
+            {
+                response.StatusCode = HttpStatusCode.Found;
+                response.Headers.Location = destination;
+            }
+            else FinalHeaders = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase);
+            return Task.FromResult(response);
+        }
+    }
+
+    private static async Task RedirectCredentialBoundaries()
+    {
+        var origin = new Uri("https://www.example.test/start");
+        foreach (var target in new[] { "https://www.example.test/file", "https://WWW.example.test:443/file", "https://dl.example.test/file", "https://example.test/file", "https://www.example.test:8443/file", "https://unrelated.test/file" })
+        {
+            var handler = new CredentialRedirectHandler(new Uri(target));
+            using var http = new HttpClient(new SafeRedirects(handler));
+            var download = new DownloadRequest { Url = origin, TargetDirectory = ".", Cookie = "session=FAKE", Headers = new Dictionary<string, string> {
+                ["Authorization"] = "Bearer FAKE", ["X-Token"] = "FAKE", ["Session-Token"] = "FAKE",
+                ["Referer"] = "https://www.example.test/page?token=FAKE", ["Range"] = "bytes=1-2", ["User-Agent"] = "Stretto-test"
+            } };
+            using var request = HttpProbe.BuildRequest(download);
+            using var response = await http.SendAsync(request);
+            var headers = handler.FinalHeaders!;
+            var same = SafeRedirects.SameOrigin(origin, new Uri(target));
+            foreach (var secret in new[] { "Cookie", "Authorization", "X-Token", "Session-Token", "Referer" })
+                Assert.Equal(same, headers.ContainsKey(secret), $"{secret} follows only its original origin: {target}");
+            Assert.Equal("bytes=1-2", headers["Range"], "redirect preserves ranged transfer semantics");
+            Assert.Equal("Stretto-test", headers["User-Agent"], "ordinary client identification survives");
+
+            // Segments rebuild the request for a probe's final URL. That path must use
+            // the very same boundary, not quietly put the browser credentials back.
+            using var rebuilt = HttpProbe.BuildRequest(download, new Uri(target));
+            Assert.Equal(same, rebuilt.Headers.Contains("Authorization"), "direct final-URL request uses the origin boundary");
+            Assert.Equal(same, rebuilt.Headers.Contains("Session-Token"), "non-X credentials cannot bypass the boundary");
+        }
+        Assert.False(SafeRedirects.SameOrigin(new Uri("http://example.test/"), new Uri("https://example.test/")), "a scheme change is another origin too");
+    }
+
+    private static Task ScopesBatchCookies()
+    {
+        var current = new BatchHandoff
+        {
+            Urls = [],
+            Cookies = new() { ["https://img.example.test"] = "secure=1", ["http://plain.example.test"] = "plain=1" },
+        };
+        Assert.Equal("secure=1", current.CookieFor("https://img.example.test/a.jpg"), "same origin gets its cookies");
+        Assert.True(current.CookieFor("http://img.example.test/a.jpg") is null, "http does not get the https jar");
+        Assert.Equal("plain=1", current.CookieFor("http://plain.example.test/a.jpg"), "an http origin gets its own");
+
+        // What an older extension sends: bare host, read from the https:// jar.
+        var legacy = new BatchHandoff { Urls = [], Cookies = new() { ["img.example.test"] = "secure=1" } };
+        Assert.Equal("secure=1", legacy.CookieFor("https://img.example.test/a.jpg"), "legacy keys still serve https");
+        Assert.True(legacy.CookieFor("http://img.example.test/a.jpg") is null, "legacy keys never serve http");
+        return Task.CompletedTask;
+    }
+
+    private static async Task RefusesFtpLineBreaks()
+    {
+        await using var server = FtpTestServer.Start(1024);
+        using var folder = new TempFolder();
+        var smuggled = new Uri(server.Url("a.bin") + "%0D%0ADELE%20important.txt");
+        try
+        {
+            await new FtpDownloader().DownloadAsync(new DownloadRequest { Url = smuggled, TargetDirectory = folder.Path });
+            throw new Exception("a line break in the path was sent to the server");
+        }
+        catch (IOException exception)
+        {
+            Assert.True(exception.Message.Contains("line break"), "refused for the right reason: " + exception.Message);
+        }
+    }
+
+    private static Task ImportsWithoutAuthority()
+    {
+        using var folder = new TempFolder();
+        var originalData = DownloadStore.Directory;
+        DownloadStore.Directory = Path.Combine(folder.Path, "data");
+        try
+        {
+            var victim = Path.Combine(folder.Path, "thesis.docx");
+            File.WriteAllText(victim, "years of work");
+            var service = new DownloadService(new AppSettings());
+            service.Import([
+                new DownloadStore.Entry { Url = "https://example.test/a.bin", Name = "a.bin", TargetDirectory = folder.Path,
+                    FilePath = victim, Status = DownloadStatus.Queued, BytesCompleted = 10 },
+                new DownloadStore.Entry { Url = "https://example.test/b.bin", Name = "b.bin", TargetDirectory = folder.Path,
+                    Status = DownloadStatus.Failed, Error = "old" },
+            ]);
+            Assert.True(service.Items.All(i => i.Status == DownloadStatus.Paused), "everything lands paused, queued included");
+            Assert.True(service.Items.All(i => i.FilePath is null), "a list cannot claim a file on this machine");
+            Assert.True(service.Items.All(i => i.BytesCompleted == 0), "no progress is claimed either");
+            Assert.Equal("years of work", File.ReadAllText(victim), "nothing touched on import");
+        }
+        finally { DownloadStore.Directory = originalData; }
+        return Task.CompletedTask;
+    }
+
+    private static Task ReadsToolChecksums()
+    {
+        var hash = new string('a', 64);
+        var other = new string('b', 64);
+        Assert.Equal(hash, ToolBox.ExpectedHash($"{other}  yt-dlp_x86.exe\n{hash}  yt-dlp.exe\n", "yt-dlp.exe", single: false), "named line");
+        Assert.Equal(hash, ToolBox.ExpectedHash($"{hash}\n", "ffmpeg.exe", single: true), "single-hash file");
+        Assert.True(ToolBox.ExpectedHash($"{other}  yt-dlp.tar.gz", "yt-dlp.exe", single: false) is null, "absent file");
+        return Task.CompletedTask;
     }
 
     private static async Task AutosaveOrdering()

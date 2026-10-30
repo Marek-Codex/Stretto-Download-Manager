@@ -32,6 +32,10 @@ public static class ToolBox
     /// <summary>A build of ffmpeg for Windows, as a zip holding the executables.</summary>
     private const string FfmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
 
+    /// <summary>Each publisher's SHA-256 list for the file above, checked before anything runs.</summary>
+    private const string YtDlpSumsUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS";
+    private const string FfmpegSumsUrl = FfmpegUrl + ".sha256";
+
     public static string FileName(Tool tool) => tool is Tool.Ffmpeg ? "ffmpeg.exe" : "yt-dlp.exe";
 
     public static string SourceUrl(Tool tool) => tool is Tool.Ffmpeg ? FfmpegUrl : YtDlpUrl;
@@ -113,6 +117,7 @@ public static class ToolBox
         try
         {
             await FetchAsync(http, SourceUrl(tool), temporary, progress, ct).ConfigureAwait(false);
+            await VerifyAsync(tool, http, temporary, ct).ConfigureAwait(false);
 
             if (tool is Tool.YtDlp)
             {
@@ -131,6 +136,45 @@ public static class ToolBox
                 catch (IOException) { /* it will be overwritten next time */ }
             }
         }
+    }
+
+    /// <summary>
+    /// Compares the download with the hash its publisher lists beside it. Both sit on the same
+    /// host, so this catches a damaged or swapped-mid-release file rather than a compromised
+    /// publisher; still far better than running whatever bytes happened to arrive.
+    /// </summary>
+    private static async Task VerifyAsync(Tool tool, HttpClient http, string path, CancellationToken ct)
+    {
+        var listing = await http.GetStringAsync(tool is Tool.Ffmpeg ? FfmpegSumsUrl : YtDlpSumsUrl, ct)
+            .ConfigureAwait(false);
+
+        var expected = ExpectedHash(listing, FileName(tool), single: tool is Tool.Ffmpeg)
+            ?? throw new InvalidOperationException($"The {DisplayName(tool)} checksum list did not name this file.");
+
+        await using var stream = File.OpenRead(path);
+        var actual = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct)
+            .ConfigureAwait(false));
+
+        if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"The downloaded {DisplayName(tool)} does not match its published checksum, so it was not installed.");
+    }
+
+    /// <summary>The SHA-256 for <paramref name="fileName"/> in a sha256sum-style listing, or the
+    /// only hash in a single-file one.</summary>
+    internal static string? ExpectedHash(string listing, string fileName, bool single)
+    {
+        foreach (var line in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0 || parts[0].Length != 64 || !parts[0].All(Uri.IsHexDigit))
+                continue;
+
+            if (single || (parts.Length == 2 && string.Equals(parts[1].TrimStart('*'), fileName, StringComparison.OrdinalIgnoreCase)))
+                return parts[0];
+        }
+
+        return null;
     }
 
     private static async Task FetchAsync(

@@ -8,7 +8,7 @@
 ![.NET](https://img.shields.io/badge/.NET-10-3CA0FF?style=flat-square)
 ![WinUI](https://img.shields.io/badge/UI-WinUI%203-A03CFF?style=flat-square)
 ![Release status](https://img.shields.io/badge/status-pre--release-3CA0FF?style=flat-square)
-![License](https://img.shields.io/badge/license-all%20rights%20reserved-A03CFF?style=flat-square)
+![License](https://img.shields.io/badge/license-Apache--2.0-A03CFF?style=flat-square)
 
 ![README image loads](https://count.getloli.com/@marek-codex.stretto-download-manager?theme=miku)
 
@@ -150,7 +150,10 @@ connection setting, regardless of how many ranges its saved state contains.
 
 ## License
 
-All rights reserved for now; see [LICENSE](LICENSE). The app depends on the Windows App SDK and one Microsoft cryptography package, which keep their own licenses.
+Stretto's original code and documentation are licensed under [Apache-2.0](LICENSE),
+including personal and commercial use. See [NOTICE](NOTICE), the
+[licensing guide](docs/LICENSING.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
+Donations and sponsorship are welcome; they are not required for permission to use the code.
 Optional ffmpeg and yt-dlp downloads are separate programs distributed under their
 upstream licenses; they are not bundled into Stretto's installers.
 

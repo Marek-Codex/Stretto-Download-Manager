@@ -8,13 +8,13 @@ reserved as an MSIX app, product ID `9NDPLDT131GP`. Reservation is not publicati
 - Build the solution and run the engine and extension regression suites from
   [CONTRIBUTING.md](../CONTRIBUTING.md). Record optional-tool skips.
 - Review the staged diff for credentials, private URLs, generated output and local paths.
-- Keep the intended license explicit; the current license is all rights reserved.
+- Keep the Apache-2.0 license, NOTICE, licensing guide and bundled third-party notices explicit.
 - Review the [provenance assessment](PROVENANCE-REVIEW-2026-10-28.md). The available
   comparison and author's screenshot-based recollection do not confirm reused
   upstream source. Keep the limits explicit; do not claim legal clearance or
   clean-room development, and preserve any attribution actually required.
-- Finalize permission to use the free binaries and account for third-party runtime
-  notices in the actual installer. The current placeholder license is not that work.
+- Verify free-binary permission and third-party runtime notices in the actual installer.
+  Packaging must include LICENSE, NOTICE, THIRD-PARTY-NOTICES.md and third-party-licenses/.
 - Create and connect the intended GitHub repository before enabling the app's GitHub
   release channel. Verify the release URL and actual assets, not just the repository name.
 - Use focused commits describing the real changes. Do not backdate development history.

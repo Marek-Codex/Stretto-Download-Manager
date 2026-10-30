@@ -23,7 +23,14 @@ public partial class App : Application
         Stretto.Core.AppLog.Sink = Log;
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log($"AppDomain exception: {e.ExceptionObject}");
-        UnhandledException += (_, e) => Log($"WinUI exception: {e.Exception}");
+        UnhandledException += (_, e) =>
+        {
+            // These arrive from UI handlers (a dialog asked to open while another is up, a
+            // file picker refusing a folder). The downloads are fine and the queue autosaves,
+            // so losing the whole app over one button is the worse outcome.
+            Log($"WinUI exception: {e.Exception}");
+            e.Handled = true;
+        };
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)

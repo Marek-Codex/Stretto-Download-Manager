@@ -10,13 +10,15 @@ const path = require('path');
 const PORT = 9615;
 const EXT = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 const tokenPath = path.join(process.env.LOCALAPPDATA, 'Stretto', 'pairing.txt');
+const statePath = path.join(process.env.LOCALAPPDATA, 'Stretto', 'pairing-state.json');
 
-if (!fs.existsSync(tokenPath)) {
+if (!fs.existsSync(statePath) && !fs.existsSync(tokenPath)) {
   console.error(`No pairing token at ${tokenPath} — start the app first.`);
   process.exit(1);
 }
 
-const token = fs.readFileSync(tokenPath, 'utf8').trim();
+const token = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')).Token
+  : fs.readFileSync(tokenPath, 'utf8').trim();
 const target = process.argv[2];
 
 async function call(label, { p = '/ping', method = 'GET', origin, tok, body }) {

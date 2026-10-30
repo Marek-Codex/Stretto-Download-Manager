@@ -40,7 +40,9 @@ public static class HttpProbe
             FinalUrl = finalUrl,
             TotalLength = total,
             SupportsRanges = supportsRanges && total is > 0,
-            SuggestedFileName = request.FileName ?? ResolveFileName(response, finalUrl),
+            SuggestedFileName = request.FileName is { } chosen
+                ? FilePaths.SafeName(chosen, "download.bin")
+                : ResolveFileName(response, finalUrl),
             ContentType = response.Content.Headers.ContentType?.MediaType,
             // Weak tags permit semantically equivalent but byte-different representations.
             // That is fine for a web cache. It is not permission to stitch their ranges.
@@ -50,15 +52,20 @@ public static class HttpProbe
         };
     }
 
-    public static HttpRequestMessage BuildRequest(DownloadRequest request)
+    /// <summary>A GET carrying the browser context, sent to <paramref name="target"/> when the
+    /// probe found the file elsewhere. The session only goes along on the same origin.</summary>
+    public static HttpRequestMessage BuildRequest(DownloadRequest request, Uri? target = null)
     {
-        var message = new HttpRequestMessage(HttpMethod.Get, request.Url);
+        var message = new HttpRequestMessage(HttpMethod.Get, target ?? request.Url);
 
         foreach (var (name, value) in request.Headers)
             message.Headers.TryAddWithoutValidation(name, value);
 
         if (!string.IsNullOrEmpty(request.Cookie))
             message.Headers.TryAddWithoutValidation("Cookie", request.Cookie);
+
+        if (target is not null && !SafeRedirects.SameOrigin(request.Url, target))
+            SafeRedirects.StripSession(message.Headers);
 
         return message;
     }
@@ -68,16 +75,9 @@ public static class HttpProbe
         var disposition = response.Content.Headers.ContentDisposition;
         var fromHeader = disposition?.FileNameStar ?? disposition?.FileName;
         if (!string.IsNullOrWhiteSpace(fromHeader))
-            return Sanitize(fromHeader.Trim('"'));
+            return FilePaths.SafeName(fromHeader.Trim('"'), "download.bin");
 
         var fromPath = Path.GetFileName(Uri.UnescapeDataString(finalUrl.AbsolutePath));
-        return string.IsNullOrWhiteSpace(fromPath) ? "download.bin" : Sanitize(fromPath);
-    }
-
-    private static string Sanitize(string name)
-    {
-        var cleaned = string.Concat(name.Select(c =>
-            Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
-        return string.IsNullOrWhiteSpace(cleaned) ? "download.bin" : cleaned;
+        return FilePaths.SafeName(fromPath, "download.bin");
     }
 }

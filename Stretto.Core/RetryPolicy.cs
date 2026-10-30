@@ -43,6 +43,18 @@ public static class RetryPolicy
         exception is DownloadHttpException { RetryNotBefore: { } until } && until - DateTimeOffset.UtcNow > fallback
             ? until - DateTimeOffset.UtcNow : fallback;
 
+    /// <summary>
+    /// How long a connection waits before trying again: doubling from half a second, capped
+    /// at thirty, and spread over the upper half of that range. The spread matters more than
+    /// the curve. Sixteen connections that failed together and retry together are a burst,
+    /// and a burst is what earns the 429. Persistent, yes; a synchronised drum line, no.
+    /// </summary>
+    public static TimeSpan Backoff(int attempt)
+    {
+        var ceiling = Math.Min(30_000, 500 * Math.Pow(2, Math.Clamp(attempt - 1, 0, 16)));
+        return TimeSpan.FromMilliseconds(ceiling * (0.5 + Random.Shared.NextDouble() / 2));
+    }
+
     public static async Task WaitAsync(TimeSpan delay, CancellationToken ct)
     {
         while (delay > TimeSpan.Zero)

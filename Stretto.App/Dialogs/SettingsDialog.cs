@@ -360,6 +360,9 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
     /// <summary>Writes the dialog back into settings. Call only on Save.</summary>
     public async Task ApplyAsync()
     {
+        // Permission changes commit together, before the other settings are modified.
+        // A storage failure leaves the dialog's whole revocation batch unapplied.
+        Pairing.ForgetMany(Pairing.Approved.Where(o => !_extensions.Contains(o)).ToArray());
         _settings.DownloadFolder = _folder;
         _settings.SortByType = _sortByType.IsOn;
         _settings.OverwriteExisting = _overwrite.IsOn;
@@ -396,11 +399,6 @@ public sealed partial class SettingsDialog : UserControl, ICloseRequestedWindowF
         _settings.ProxyPort = IntOf(_proxyPort, 0);
         _settings.ProxyUsername = _proxyUser.Text.Trim();
         _settings.ProxyPassword = _proxyPassword.Password;
-
-        // Revocations are applied on Save like everything else, so Cancel really does leave
-        // the approved list alone.
-        foreach (var origin in Pairing.Approved.Where(o => !_extensions.Contains(o)).ToList())
-            Pairing.Forget(origin);
 
         _settings.BrowserMonitoring = _monitoring.IsOn;
         _settings.ConfirmCaptures = _confirmCaptures.IsOn;

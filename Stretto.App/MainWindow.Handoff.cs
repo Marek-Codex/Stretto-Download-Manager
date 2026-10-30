@@ -26,7 +26,7 @@ public sealed partial class MainWindow
 
         try
         {
-            _handoff = new HandoffListener(Pairing.Token, _settings.HandoffPort);
+            _handoff = new HandoffListener(() => Pairing.Token, _settings.HandoffPort);
             _handoff.Rules = BuildRulesJson;
             _handoff.PairRequested = OnPairRequestedAsync;
             _handoff.Decide = OnCaptureDecidedAsync;
@@ -95,16 +95,9 @@ public sealed partial class MainWindow
     {
         // Already trusted: answer without bothering anyone. This is the path every launch
         // after the first takes.
-        if (Pairing.IsApproved(origin))
-            return Task.FromResult<string?>(Pairing.Token);
-
-        // Our own bundled extension, recognised by the id Chromium derives from its folder.
-        if (Pairing.IsOwnExtension(origin))
-        {
-            Pairing.Approve(origin);
-            App.Log($"Auto-approved Stretto's own extension: {origin}");
-            return Task.FromResult<string?>(Pairing.Token);
-        }
+        var generation = Pairing.ApprovalGeneration;
+        if (Pairing.ApprovedToken(origin) is { } approvedToken)
+            return Task.FromResult<string?>(approvedToken);
 
         var decision = new TaskCompletionSource<string?>();
 
@@ -112,7 +105,7 @@ public sealed partial class MainWindow
         {
             try
             {
-                decision.SetResult(await AskToPairAsync(origin));
+                decision.SetResult(await AskToPairAsync(origin, generation));
             }
             catch (Exception exception)
             {
@@ -124,7 +117,7 @@ public sealed partial class MainWindow
         return decision.Task;
     }
 
-    private async Task<string?> AskToPairAsync(string origin)
+    private async Task<string?> AskToPairAsync(string origin, long generation)
     {
         var panel = new StackPanel { Spacing = 12 };
 
@@ -151,9 +144,9 @@ public sealed partial class MainWindow
         if (await ShowInWindowAsync(form, "Browser integration") != ContentDialogResult.Primary)
             return null;
 
-        Pairing.Approve(origin);
+        var token = Pairing.ApproveAndGetToken(origin, generation);
         UpdateBrowserStatus();
-        return Pairing.Token;
+        return token;
     }
 
     /// <summary>
@@ -216,12 +209,11 @@ public sealed partial class MainWindow
                 ShowActive();
                 foreach (var url in urls)
                 {
-                    var host = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "";
                     _downloads.Add(url, _downloads.OptionsFromSettings() with
                     {
                         Referrer = batch.Referrer,
                         UserAgent = batch.UserAgent,
-                        Cookie = batch.Cookies?.GetValueOrDefault(host),
+                        Cookie = batch.CookieFor(url),
                     });
                 }
 
@@ -331,10 +323,12 @@ public sealed partial class MainWindow
     /// </summary>
     private void BeginRefresh(DownloadItem item)
     {
-
-        if (item.Referrer is not { Length: > 0 } referrer)
+        // Only a web page counts: the referrer arrives from the browser, and the shell would
+        // run a file: or UNC target rather than show it.
+        if (!Uri.TryCreate(item.Referrer, UriKind.Absolute, out var referrer)
+            || referrer.Scheme is not ("http" or "https"))
         {
-            ShowNotice("Nothing to go back to", 
+            ShowNotice("Nothing to go back to",
                 $"{item.Name} was not captured from a page, so there is no page to ask for a new link.",
                 "Copy link", () => SetClipboard(item.Url));
             return;
@@ -387,14 +381,7 @@ public sealed partial class MainWindow
                               + "Stretto will attach it to the existing file instead of starting over.";
         RefreshBanner.IsOpen = true;
 
-        try
-        {
-            Process.Start(new ProcessStartInfo(referrer) { UseShellExecute = true });
-        }
-        catch (Exception exception)
-        {
-            App.Log($"Could not open the referring page: {exception.Message}");
-        }
+        WebLinks.Open(referrer.AbsoluteUri);
     }
 
     private void RefreshBanner_Closed(InfoBar sender, InfoBarClosedEventArgs args) => _refreshTarget = null;

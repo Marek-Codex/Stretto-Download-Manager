@@ -17,6 +17,12 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
         public TaskCompletionSource Changed = NewSignal();
     }
 
+    /// <summary>How long the lowered ceiling holds after a 429 or 503 before recovery starts.</summary>
+    internal static TimeSpan Cooldown { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>How often one connection is handed back once a host's cooldown ends.</summary>
+    internal static TimeSpan RecoveryStep { get; set; } = TimeSpan.FromMinutes(1);
+
     private readonly object _gate = new();
     private readonly Dictionary<string, State> _hosts = new(StringComparer.OrdinalIgnoreCase);
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -27,7 +33,18 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
     }
     private int Limit(Uri uri, State state)
     {
-        if (state.LimitUntil <= DateTimeOffset.UtcNow) state.LearnedLimit = int.MaxValue;
+        // After the cooldown, earn the seats back one a minute rather than all at once.
+        // Leaping straight from "the host asked us to ease off" to the full limit is how a
+        // downloader collects its second 429 of the afternoon.
+        var now = DateTimeOffset.UtcNow;
+        if (state.LearnedLimit != int.MaxValue && state.LimitUntil <= now)
+        {
+            var steps = 1 + (int)Math.Min(SegmentedDownloader.MaxConnections, (now - state.LimitUntil) / RecoveryStep);
+            state.LearnedLimit = state.LearnedLimit + steps >= SegmentedDownloader.MaxConnections
+                ? int.MaxValue
+                : state.LearnedLimit + steps;
+            state.LimitUntil = now + RecoveryStep;
+        }
         return Math.Min(state.LearnedLimit, Math.Clamp(limitFor(uri), 1, SegmentedDownloader.MaxConnections));
     }
     private static void Signal(State state)
@@ -68,10 +85,20 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
             {
                 var state = For(uri);
                 delay = state.NotBefore - DateTimeOffset.UtcNow;
-                if (delay <= TimeSpan.Zero && state.Active < Limit(uri, state))
+                var limit = Limit(uri, state);
+                if (delay <= TimeSpan.Zero && state.Active < limit)
                 {
                     state.Active++;
                     return new Lease(this, state);
+                }
+                // Time can free a seat even when no active response finishes. Wake at
+                // that deadline as well as on a release/settings signal; no polling task.
+                if (state.LearnedLimit != int.MaxValue
+                    && limit < Math.Clamp(limitFor(uri), 1, SegmentedDownloader.MaxConnections))
+                {
+                    var recovery = state.LimitUntil - DateTimeOffset.UtcNow;
+                    if (recovery <= TimeSpan.Zero) recovery = TimeSpan.FromMilliseconds(1);
+                    if (delay <= TimeSpan.Zero || recovery < delay) delay = recovery;
                 }
                 changed = state.Changed.Task;
             }
@@ -95,7 +122,7 @@ public sealed class HostRequestBudget(Func<Uri, int> limitFor)
             // Leave useful transfers running; lower the ceiling for new arrivals for five minutes.
             // The host asked for breathing room, not a dramatic evacuation. *ear flick*
             state.LearnedLimit = Math.Min(Limit(uri, state), Math.Max(1, state.Active - 1));
-            state.LimitUntil = DateTimeOffset.UtcNow.AddMinutes(5);
+            state.LimitUntil = DateTimeOffset.UtcNow + Cooldown;
             var until = RetryPolicy.RetryNotBefore(response) ?? DateTimeOffset.UtcNow.AddSeconds(1);
             if (until > state.NotBefore) state.NotBefore = until;
             Signal(state);

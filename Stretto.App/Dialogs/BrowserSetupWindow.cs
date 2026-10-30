@@ -289,7 +289,7 @@ public sealed class BrowserSetupWindow : Window
         _connectBody.TextAlignment = TextAlignment.Center;
         _connectBody.MaxWidth = 420;
 
-        var panel = Step("Connect", "Nothing to type: the extension finds Stretto and pairs itself.");
+        var panel = Step("Connect", "The extension finds Stretto. Choose Allow when the app asks to connect it.");
         var card = new Border
         {
             Background = FormKit.Res("StrettoCardBrush"),

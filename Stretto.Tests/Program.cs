@@ -672,16 +672,23 @@ public static partial class Program
             "session=abc");
 
         Assert.Equal(
-            "curl --fail --location --remote-name \"https://files.example.com/setup.exe?token=a\\\"b\\\\c\" "
-            + "--header \"Referer: https://example.com/\" "
-            + "--header \"User-Agent: unit\" "
-            + "--header \"Cookie: session=abc\"",
+            "curl.exe --fail --location --remote-name 'https://files.example.com/setup.exe?token=a\"b\\c' "
+            + "--header 'Referer: https://example.com/' "
+            + "--header 'User-Agent: unit' "
+            + "--header 'Cookie: session=abc'",
             command, "curl command");
 
         var bare = CurlCommand.Build(new Uri("https://files.example.com/plain.bin"));
         Assert.Equal(
-            "curl --fail --location --remote-name \"https://files.example.com/plain.bin\"",
+            "curl.exe --fail --location --remote-name 'https://files.example.com/plain.bin'",
             bare, "a request with no extra context stays one line");
+
+        // A cookie is whatever the site set. Pasted into PowerShell it must stay text.
+        var planted = CurlCommand.Build(new Uri("https://files.example.com/a.bin"), cookie: "x=$(calc);y='z'");
+        Assert.Equal(
+            "curl.exe --fail --location --remote-name 'https://files.example.com/a.bin' "
+            + "--header 'Cookie: x=$(calc);y=''z'''",
+            planted, "substitution stays literal");
 
         return Task.CompletedTask;
     }

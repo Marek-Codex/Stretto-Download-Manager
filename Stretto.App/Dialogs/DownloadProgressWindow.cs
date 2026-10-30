@@ -248,10 +248,12 @@ public sealed class DownloadProgressWindow : Window
     {
         try
         {
-            var start = _item.ResolvedPath is { } path && File.Exists(path)
-                ? new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{path}\"")
-                : new System.Diagnostics.ProcessStartInfo(_item.TargetDirectory) { UseShellExecute = true };
-            System.Diagnostics.Process.Start(start);
+            // Only ever a real folder: an imported list can name anything as its directory,
+            // and the shell would happily run a program it was handed instead.
+            if (_item.ResolvedPath is { } path && File.Exists(path))
+                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
+            else if (Path.IsPathFullyQualified(_item.TargetDirectory) && Directory.Exists(_item.TargetDirectory))
+                System.Diagnostics.Process.Start("explorer.exe", $"\"{_item.TargetDirectory}\"");
         }
         catch (Exception exception)
         {

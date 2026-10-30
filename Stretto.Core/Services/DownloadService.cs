@@ -198,11 +198,17 @@ public sealed partial class DownloadService
 
             var item = FromEntry(entry);
 
-            // An exported "complete" is only complete on the machine it came from.
-            if (item.Status is DownloadStatus.Complete && !File.Exists(item.ResolvedPath ?? ""))
+            // A list from elsewhere describes downloads; it does not own files here. Without
+            // this, Restart would delete whatever path the list named as "its" file.
+            item.FilePath = null;
+
+            // An exported "complete" is only complete on the machine it came from, and any
+            // other state lands paused whatever the file says: Queued would start by itself.
+            if (item.Status is not DownloadStatus.Complete || !File.Exists(item.ResolvedPath ?? ""))
             {
                 item.Status = DownloadStatus.Paused;
                 item.BytesCompleted = 0;
+                item.Error = null;
             }
 
             Items.Insert(0, item);
@@ -463,10 +469,7 @@ public sealed partial class DownloadService
             item.TotalBytes = result.BytesWritten;
             item.BytesCompleted = result.BytesWritten;
             item.BytesPerSecond = 0;
-            item.CompletedAt = DateTimeOffset.Now;
-            item.AutoRetries = 0;
-            item.Status = DownloadStatus.Complete;
-            Completed?.Invoke(item);
+            Finish(item);
         }
         catch (OperationCanceledException)
         {

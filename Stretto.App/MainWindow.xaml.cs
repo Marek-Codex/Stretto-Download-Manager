@@ -1387,7 +1387,16 @@ public sealed partial class MainWindow : Window
             return;
 
         if (result == ContentDialogResult.Primary)
-            await dialog.ApplyAsync();
+        {
+            try { await dialog.ApplyAsync(); }
+            catch (IOException exception)
+            {
+                App.Log($"Could not apply settings: {exception.Message}");
+                ShowNotice("Settings were not fully saved", exception.Message,
+                    "Review settings", () => { _ = OpenSettingsAsync(section); });
+                return;
+            }
+        }
 
         // Timeout and retry count are baked into the HTTP stack, so they only take effect
         // once it is rebuilt. This also re-applies the speed limit and pumps the queue in

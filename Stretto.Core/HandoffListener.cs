@@ -28,7 +28,7 @@ public sealed record MediaReport
 /// <summary>
 /// Many links at once, from the extension's "all links" and "all images" commands. Sent as
 /// one request so the app can show one list to confirm, not a window per link.
-/// Cookies are keyed by host, because a page's images often live on another host.
+/// Cookies are keyed by origin, because a page's images often live on another host.
 /// </summary>
 public sealed record BatchHandoff
 {
@@ -36,6 +36,22 @@ public sealed record BatchHandoff
     public string? Referrer { get; init; }
     public string? UserAgent { get; init; }
     public Dictionary<string, string>? Cookies { get; init; }
+
+    /// <summary>
+    /// The cookies the browser sent for this link's origin. Older extensions keyed them by
+    /// bare host after reading the https:// jar, so those only ever go to an https:// link:
+    /// a Secure cookie in clear text over http:// is precisely what Secure exists to prevent.
+    /// </summary>
+    public string? CookieFor(string url)
+    {
+        if (Cookies is null || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return null;
+
+        if (Cookies.TryGetValue(uri.GetLeftPart(UriPartial.Authority), out var exact))
+            return exact;
+
+        return uri.Scheme == Uri.UriSchemeHttps ? Cookies.GetValueOrDefault(uri.Authority) : null;
+    }
 }
 
 /// <summary>A download the browser extension has handed over.</summary>
@@ -98,12 +114,16 @@ public sealed class HandoffListener : IDisposable
 {
     public const int DefaultPort = 9615;
 
-    private readonly string _token;
+    private readonly Func<string> _token;
     private readonly int _port;
     private TcpListener? _listener;
     private CancellationTokenSource? _stopping;
 
-    public HandoffListener(string token, int port = DefaultPort)
+    public HandoffListener(string token, int port = DefaultPort) : this(() => token, port) { }
+
+    /// <summary>Reads the token per request, so revoking an extension can rotate it without
+    /// restarting the listener.</summary>
+    public HandoffListener(Func<string> token, int port = DefaultPort)
     {
         _token = token;
         _port = port;
@@ -341,7 +361,7 @@ public sealed class HandoffListener : IDisposable
         }
 
         headers.TryGetValue("x-stretto-token", out var token);
-        if (!FixedTimeEquals(token, _token))
+        if (!FixedTimeEquals(token, _token()))
         {
             Log?.Invoke("Rejected request with a bad pairing token");
             await WriteAsync(stream, 401, """{"error":"token"}""", context, ct).ConfigureAwait(false);

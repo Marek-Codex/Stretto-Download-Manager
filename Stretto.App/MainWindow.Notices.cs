@@ -64,7 +64,7 @@ public sealed partial class MainWindow
             ShowNotice($"Stretto {found.Tag} is available",
                 $"You have {Updates.CurrentText}.",
                 "See what's new",
-                () => Process.Start(new ProcessStartInfo(found.PageUrl) { UseShellExecute = true }));
+                () => WebLinks.Open(found.PageUrl));
         }
         catch (Exception exception)
         {

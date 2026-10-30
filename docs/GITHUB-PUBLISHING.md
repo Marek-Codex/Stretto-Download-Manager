@@ -13,7 +13,7 @@ third-party notices. See [the release checklist](RELEASING.md).
 
 - Owner: `Marek-Codex`
 - Name: `Stretto-Download-Manager`
-- Visibility: public, retaining the current all-rights-reserved license
+- Visibility: public, with Apache-2.0 for Stretto's original code and documentation
 - About: `A Windows download manager with resumable transfers, adaptive connections, queues, and Chromium/Firefox integration. Built with WinUI 3 and .NET 10. Part of Plexus Apps.`
 - Topics: `download-manager`, `download-accelerator`, `windows`, `winui3`, `dotnet`,
   `csharp`, `browser-extension`, `chromium`, `firefox`, `hls`, `plexus-apps`

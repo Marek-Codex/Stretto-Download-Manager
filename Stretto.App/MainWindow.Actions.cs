@@ -351,8 +351,8 @@ public sealed partial class MainWindow
             // /select, highlights the file rather than just opening the folder.
             if (item.ResolvedPath is { } path && File.Exists(path))
                 Process.Start("explorer.exe", $"/select,\"{path}\"");
-            else if (Directory.Exists(item.TargetDirectory))
-                Process.Start(new ProcessStartInfo(item.TargetDirectory) { UseShellExecute = true });
+            else if (Path.IsPathFullyQualified(item.TargetDirectory) && Directory.Exists(item.TargetDirectory))
+                Process.Start("explorer.exe", $"\"{item.TargetDirectory}\"");
         }
         catch (Exception exception)
         {

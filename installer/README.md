@@ -12,6 +12,15 @@ Successful builds remove their temporary staging directory. Use `-KeepStaging` t
 
 Requirements: .NET 10 SDK, NSIS for EXE, and Windows SDK MakeAppx for MSIX. The script finds NSIS in its usual install directory and MakeAppx/SignTool in either the installed SDK or restored `Microsoft.Windows.SDK.BuildTools` NuGet package; no global SDK PATH entries are necessary.
 
+MSIX also uses MakePRI from the same SDK to create the package's `resources.pri`
+under its package identity. The source app's merged PRI is the input; re-indexing
+every loose runtime PRI causes duplicate resource entries. Packaging verifies
+that the result contains the WinUI theme and main-window resources.
+
+Both formats include Stretto's LICENSE and NOTICE, plus a generated dependency
+license inventory and upstream texts in `third-party-licenses/`. The inventory
+includes restored build-dependency notices conservatively and records hashes.
+
 Both packages include .NET and Windows App SDK. They require x64 Windows 10 1809 or later; users do not need an SDK or a separately installed .NET runtime. ffmpeg and yt-dlp remain optional components installed through the app. Browser extensions are bundled; the Firefox XPI remains unsigned unless separately signed through Mozilla.
 
 ## EXE

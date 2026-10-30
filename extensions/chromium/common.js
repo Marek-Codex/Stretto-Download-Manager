@@ -552,13 +552,14 @@ async function downloadAll(info, tab, wantImages) {
     return done(wantImages ? 'No images found on this page.' : 'No downloadable links found on this page.');
   }
 
-  // One cookie header per host rather than per link: a gallery is hundreds of images on
-  // two or three hosts.
+  // One cookie header per origin rather than per link: a gallery is hundreds of images on
+  // two or three hosts. Keyed by scheme too, so an http:// link never gets the cookies the
+  // browser keeps for https:// (Secure ones included).
   const cookies = {};
-  for (const host of new Set(urls.map((u) => { try { return new URL(u).host; } catch { return ''; } }))) {
-    if (!host) continue;
-    const header = await cookieHeaderFor(`https://${host}/`);
-    if (header) cookies[host] = header;
+  for (const origin of new Set(urls.map((u) => { try { return new URL(u).origin; } catch { return ''; } }))) {
+    if (!origin || origin === 'null') continue;
+    const header = await cookieHeaderFor(`${origin}/`);
+    if (header) cookies[origin] = header;
   }
 
   try {

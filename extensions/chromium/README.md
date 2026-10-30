@@ -9,8 +9,9 @@ Chromium MV3. Tested target is Brave; Chrome and Edge use the same build.
    **Load unpacked**, and choose this folder. Stretto's setup guide can drag it in for you.
 
 That is the whole setup. There is no port to enter and no token to copy: the extension finds
-Stretto on loopback by itself and asks it for a token. Stretto recognises its own bundled
-extension and answers silently; anything else gets a one-click Allow prompt.
+Stretto on loopback by itself and asks it for a token. Choose Allow in the app once;
+already-approved extensions reconnect silently. Revoking an extension requires a fresh
+Allow before it can connect again, including the bundled extension.
 
 No store listing, so no developer fee. The extension id changes if you move the folder — if
 that happens you just get the Allow prompt once more.
@@ -40,8 +41,10 @@ actually sent.
 Headers that must not be replayed are dropped on the way out: Cookie (it has its own field),
 Referer and User-Agent (set from their own fields), the HTTP/2 pseudo-headers, and the
 `sec-*` integrity claims, which describe a connection that no longer exists. What is left
-is held in memory only and never written to disk, like the cookie. A download restored from
-the list falls back to Cookie, Referer and User-Agent.
+is held in memory, and only a short list of harmless ones (`Origin`, `Accept`,
+`Accept-Language`, `X-Requested-With`, cache and DNT headers) is saved with the list, so a
+restored download can still ask the same way. Cookies, `Authorization` and anything
+token-shaped never reach the disk.
 
 This only applies to media the extension watched go out. A link taken over from the
 downloads list has no request behind it, so it gets the three it always had. That is not
@@ -55,9 +58,9 @@ Known states, rather than surprises waiting to be found:
   the newest. The two disagree only for a site that rotates a header token between
   requests, which is rare — short-lived credentials usually live in the URL, which the
   URL already carries.
-- The app replays these headers across redirects. .NET drops `Authorization` when a
-  redirect crosses to a different host, so the sharpest case is already covered; a
-  custom token header is not, and would be replayed to the redirect target.
+- The app replays these headers only within their exact origin (scheme, host and port).
+  When a redirect leaves it, the session goes: cookies, `Authorization` and custom headers
+  are dropped, and only ordinary request headers such as `Range` and `User-Agent` follow.
 - The service worker console logs which headers a sighting carried and what a send
   included, so the capture can be checked without a debugger.
 

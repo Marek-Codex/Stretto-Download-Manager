@@ -14,19 +14,77 @@ namespace Stretto.App.Services;
 /// A local address is a location, not an invitation.
 ///
 /// The user never types the secret. The extension asks for it over <c>POST /pair</c>, and
-/// Stretto hands it over once — silently when the caller is Stretto's own bundled extension,
-/// otherwise after a single Allow.
+/// Stretto hands it over after an explicit Allow. Already-approved extensions can reconnect
+/// silently; the bundled extension does not bypass a user's revocation.
 /// </summary>
 public static class Pairing
 {
-    private static readonly Lazy<string> LazyToken = new(LoadOrCreateToken);
     private static readonly Lock Gate = new();
     private static HashSet<string>? _approved;
+    private static string? _token;
+    private static long _approvalGeneration;
 
-    public static string Token => LazyToken.Value;
+    public static long ApprovalGeneration { get { lock (Gate) return _approvalGeneration; } }
+
+    public static string? ApprovedToken(string origin)
+    {
+        lock (Gate)
+        {
+            EnsureLoaded();
+            return _approved!.Contains(origin) ? _token : null;
+        }
+    }
+
+    public static string Token
+    {
+        get { lock (Gate) { EnsureLoaded(); return _token!; } }
+    }
 
     private static string TokenPath => Path.Combine(DownloadStore.Directory, "pairing.txt");
     private static string ApprovedPath => Path.Combine(DownloadStore.Directory, "extensions.json");
+    private static string StatePath => Path.Combine(DownloadStore.Directory, "pairing-state.json");
+
+    private sealed class SavedState
+    {
+        public int Version { get; set; } = 1;
+        public string Token { get; set; } = "";
+        public HashSet<string> Approved { get; set; } = [];
+    }
+
+    private static void EnsureLoaded()
+    {
+        if (_approved is not null && _token is not null) return;
+        var hasState = File.Exists(StatePath);
+        if (hasState)
+        {
+            try
+            {
+                var state = JsonSerializer.Deserialize<SavedState>(File.ReadAllText(StatePath));
+                if (state is { Version: 1, Token.Length: >= 32, Approved: not null })
+                {
+                    _approved = new(state.Approved, StringComparer.Ordinal);
+                    _token = state.Token;
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            { App.Log($"Could not read pairing state: {ex.Message}"); }
+        }
+
+        // Migrate the old two-file layout once. An unreadable/new-format state never
+        // falls back to old approvals or an obsolete token that revocation replaced.
+        _approved = hasState ? new(StringComparer.Ordinal) : LoadApproved();
+        _token = hasState ? NewToken() : LoadOrCreateToken();
+        try { SaveState(_approved, _token); }
+        catch (IOException ex) { App.Log(ex.Message); }
+    }
+
+    private static void SaveState(HashSet<string> approved, string token)
+    {
+        try { AtomicFile.WriteAllText(StatePath, JsonSerializer.Serialize(new SavedState { Approved = approved, Token = token })); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { throw new IOException("Could not save browser pairing permissions. The requested permission change was not applied.", ex); }
+    }
 
     // ═══════════════════════════════════════
     // ═══ Approved extensions
@@ -36,50 +94,52 @@ public static class Pairing
     {
         lock (Gate)
         {
-            _approved ??= LoadApproved();
-            return _approved.Contains(origin);
+            EnsureLoaded();
+            return _approved!.Contains(origin);
         }
     }
 
-    public static void Approve(string origin)
+    public static string? ApproveAndGetToken(string origin, long expectedGeneration)
     {
         lock (Gate)
         {
-            _approved ??= LoadApproved();
-            if (!_approved.Add(origin))
-                return;
-
-            try
-            {
-                Directory.CreateDirectory(DownloadStore.Directory);
-                AtomicFile.WriteAllText(ApprovedPath, JsonSerializer.Serialize(_approved));
-            }
-            catch (Exception exception) when (exception is IOException or JsonException)
-            {
-                App.Log($"Could not persist approved extensions: {exception.Message}");
-            }
+            // A dialog opened before a revocation cannot issue the newly rotated secret.
+            if (_approvalGeneration != expectedGeneration) return null;
+            EnsureLoaded();
+            if (_approved!.Contains(origin)) return _token;
+            var approved = new HashSet<string>(_approved, StringComparer.Ordinal) { origin };
+            SaveState(approved, _token!);
+            _approved = approved;
+            return _token;
         }
     }
 
-    public static void Forget(string origin)
+    public static void Forget(string origin) => ForgetMany([origin]);
+
+    public static void ForgetMany(IEnumerable<string> origins)
     {
         lock (Gate)
         {
-            _approved ??= LoadApproved();
-            if (_approved.Remove(origin))
-            {
-                try { AtomicFile.WriteAllText(ApprovedPath, JsonSerializer.Serialize(_approved)); }
-                catch (Exception exception) when (exception is IOException or JsonException)
-                {
-                    App.Log($"Could not persist approved extensions: {exception.Message}");
-                }
-            }
+            EnsureLoaded();
+            var approved = new HashSet<string>(_approved!, StringComparer.Ordinal);
+            foreach (var origin in origins) approved.Remove(origin);
+            if (approved.SetEquals(_approved!)) return;
+            var token = NewToken();
+            SaveState(approved, token);
+            _approved = approved;
+            _token = token;
+            _approvalGeneration++;
+
+            // The revoked extension still holds the old token, and taking it off the list
+            // alone would leave it working. A fresh token shuts it out; the extensions still
+            // approved notice the failed ping and re-pair without a prompt.
+            PersistToken(_token);
         }
     }
 
     public static IReadOnlyCollection<string> Approved
     {
-        get { lock (Gate) { return [.. _approved ??= LoadApproved()]; } }
+        get { lock (Gate) { EnsureLoaded(); return [.. _approved!]; } }
     }
 
     private static HashSet<string> LoadApproved()
@@ -90,7 +150,7 @@ public static class Pairing
                 && JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(ApprovedPath)) is { } saved)
                 return saved;
         }
-        catch (Exception exception) when (exception is IOException or JsonException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
             App.Log($"Could not read approved extensions: {exception.Message}");
         }
@@ -105,8 +165,8 @@ public static class Pairing
     /// <summary>
     /// Whether this origin is the extension Stretto ships, loaded unpacked from a folder we
     /// know about. Chrome derives an unpacked extension's id deterministically from its
-    /// absolute path, so the app can work out what its own copy will be called and skip the
-    /// Allow prompt for it — nothing else gets that shortcut.
+    /// absolute path. A folder-derived match identifies the bundled copy; it does not grant
+    /// approval or override revocation. Authorization uses the saved approval state.
     /// </summary>
     public static bool IsOwnExtension(string origin)
     {
@@ -199,18 +259,29 @@ public static class Pairing
                 if (existing.Length >= 32)
                     return existing;
             }
-
-            var token = NewToken();
-            Directory.CreateDirectory(DownloadStore.Directory);
-        AtomicFile.WriteAllText(TokenPath, token);
-            return token;
         }
-        catch (IOException exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // Without a readable token file the endpoint still works for this session;
+            App.Log($"Could not read pairing token: {exception.Message}");
+        }
+
+        var token = NewToken();
+        PersistToken(token);
+        return token;
+    }
+
+    private static void PersistToken(string token)
+    {
+        try
+        {
+            Directory.CreateDirectory(DownloadStore.Directory);
+            AtomicFile.WriteAllText(TokenPath, token);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Without a writable token file the endpoint still works for this session;
             // the extension just has to pair again next launch.
             App.Log($"Could not persist pairing token: {exception.Message}");
-            return NewToken();
         }
     }
 

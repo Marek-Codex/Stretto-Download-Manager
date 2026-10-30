@@ -33,7 +33,7 @@ public sealed class HelpAboutForm : UserControl, IWindowForm
             Section("Less babysitting. More downloading.", "Resumable downloads, adaptive connections, queues and browser integration. Built to keep the transfers moving while you get on with your day.");
             Section("Built with", "WinUI 3 and .NET 10. Optional ffmpeg and yt-dlp components are separate programs with their own upstream licenses.");
             Section("Release status", "This is a testing build. Final browser, interface and signed-installation acceptance checks are still in progress. Self-signed testing packages are not independently verified publisher releases.");
-            Section("License", "Copyright © 2026 Marek Codex. All rights reserved. Third-party components retain their own licenses.");
+            Section("License", "Copyright © 2026 Marek Codex. Stretto's original code is licensed under Apache-2.0, including personal and commercial use. See LICENSE and NOTICE in the installation folder. Bundled third-party licenses are in third-party-licenses.");
         }
         else
         {

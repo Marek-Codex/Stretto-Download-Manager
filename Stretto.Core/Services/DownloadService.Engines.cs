@@ -33,10 +33,7 @@ public sealed partial class DownloadService
         item.BytesCompleted = item.TotalBytes ?? 0;
         item.ProgressOverride = 1;
         item.BytesPerSecond = 0;
-        item.CompletedAt = DateTimeOffset.Now;
-        item.AutoRetries = 0;
-        item.Status = DownloadStatus.Complete;
-        Completed?.Invoke(item);
+        Finish(item);
     }
 
     private async Task RunFtpAsync(DownloadItem item, IProgress<ProgressSnapshot> progress, CancellationToken ct)
@@ -68,10 +65,7 @@ public sealed partial class DownloadService
         item.TotalBytes = result.BytesWritten;
         item.BytesCompleted = result.BytesWritten;
         item.BytesPerSecond = 0;
-        item.CompletedAt = DateTimeOffset.Now;
-        item.AutoRetries = 0;
-        item.Status = DownloadStatus.Complete;
-        Completed?.Invoke(item);
+        Finish(item);
     }
 
     /// <summary>Streams have no byte ranges to resume from, so ffmpeg owns the whole pull.</summary>
@@ -128,10 +122,7 @@ public sealed partial class DownloadService
         item.BytesCompleted = result.BytesWritten;
         item.ProgressOverride = 1;
         item.BytesPerSecond = 0;
-        item.CompletedAt = DateTimeOffset.Now;
-        item.AutoRetries = 0;
-        item.Status = DownloadStatus.Complete;
-        Completed?.Invoke(item);
+        Finish(item);
     }
 
     /// <summary>
@@ -158,5 +149,17 @@ public sealed partial class DownloadService
             ? $"Redirected to {info.FinalUrl.Host} and got a web page instead of a file. "
               + "This link needs a signed-in session, so download it through the browser extension."
             : "The server returned a web page instead of a file. The link may need a signed-in session.");
+    }
+
+    /// <summary>The end every engine shares: stamp the file as from the internet, then say so.</summary>
+    private void Finish(DownloadItem item)
+    {
+        if (item.FilePath is { } path)
+            FilePaths.MarkFromInternet(path, item.Url, item.Referrer);
+
+        item.CompletedAt = DateTimeOffset.Now;
+        item.AutoRetries = 0;
+        item.Status = DownloadStatus.Complete;
+        Completed?.Invoke(item);
     }
 }

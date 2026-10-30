@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Stretto.Core\Stretto.Core.csproj" />
+    <!-- Exercise the actual pairing policy without starting WinUI or using real app data. -->
+    <Compile Include="..\Stretto.App\Services\Pairing.cs" Link="AppServices\Pairing.cs" />
   </ItemGroup>
 
 </Project>

@@ -1,10 +1,12 @@
 # Working on Stretto
 
 Stretto Download Manager is a Windows desktop app by Marek Codex, part of Plexus Apps.
-The repository currently uses an all-rights-reserved license, not an open-source license.
-Read [LICENSE](LICENSE) before reusing or distributing its contents. A public repository
-does not change those permissions. Discuss substantial contributions with the maintainer
-before investing time in them.
+The original code and documentation use [Apache-2.0](LICENSE). Preserve applicable
+notices and identify modifications as required. Third-party components retain their
+own terms; see [the licensing guide](docs/LICENSING.md). Unless explicitly stated
+otherwise, intentional contributions are submitted under Apache-2.0 as described
+in section 5. Discuss substantial contributions with the maintainer before investing
+time in them.
 
 ## Build prerequisites
 

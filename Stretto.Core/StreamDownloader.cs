@@ -60,7 +60,12 @@ public sealed partial class StreamDownloader
 
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            // Same redirect rules as the download itself: the captured session stays on the
+            // playlist's origin, even for a request that only exists to write a log line.
+            using var http = new HttpClient(new SafeRedirects(new HttpClientHandler { AllowAutoRedirect = false }))
+            {
+                Timeout = TimeSpan.FromSeconds(15),
+            };
             using var request = new HttpRequestMessage(HttpMethod.Get, playlist);
             foreach (var header in headers)
             {
@@ -169,7 +174,7 @@ public sealed partial class StreamDownloader
     {
         Directory.CreateDirectory(targetDirectory);
 
-        fileName = SafeFileName(fileName);
+        fileName = FilePaths.SafeName(fileName, "video.mp4");
         if (!Path.HasExtension(fileName) || Path.GetExtension(fileName).ToLowerInvariant() is ".m3u8" or ".m3u" or ".mpd")
             fileName = Path.ChangeExtension(fileName, ".mp4");
 
@@ -221,7 +226,11 @@ public sealed partial class StreamDownloader
         else if (!isDash)
             arguments.AddRange(["-allowed_extensions", "ALL"]);
 
+        // A playlist is server-written text, and ffmpeg follows whatever it names. Without a
+        // whitelist a hostile one can point segments at file: URLs and copy local files into
+        // the "video". Network protocols only; crypto covers AES-128 segments.
         arguments.AddRange([
+            "-protocol_whitelist", "http,https,tls,tcp,crypto,data,httpproxy",
             "-i", playlist.ToString(),
         ]);
         // Keep the master input: its program contains both this rendition and any
@@ -390,13 +399,4 @@ public sealed partial class StreamDownloader
 
     private static string ResolveOutputPath(string directory, string name, bool overwrite, string? tag) =>
         FilePaths.ClashFree(directory, name, overwrite, tag: tag);
-
-    private static string SafeFileName(string name)
-    {
-        name = Path.GetFileName(name.Trim());
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-            name = name.Replace(invalid, '_');
-
-        return string.IsNullOrWhiteSpace(name) || name is "." or ".." ? "video.mp4" : name;
-    }
 }

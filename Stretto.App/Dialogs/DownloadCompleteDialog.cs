@@ -89,6 +89,9 @@ public sealed class DownloadCompleteDialog : UserControl, IWindowForm, IWindowFo
         ToolTipService.SetToolTip(location, item.TargetDirectory);
         info.Children.Add(location);
 
+        if (item.ResolvedPath is { Length: > 0 } path && File.Exists(path))
+            info.Children.Add(BuildHash(path));
+
         var row = new Grid { ColumnSpacing = 12, MinWidth = 460, MaxWidth = 580 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -98,5 +101,78 @@ public sealed class DownloadCompleteDialog : UserControl, IWindowForm, IWindowFo
 
         this.Compact();
         Content = row;
+    }
+
+    /// <summary>
+    /// The file's SHA-256 on one small line, for comparing with the one a download page lists.
+    /// Worked out after the window is up, so a large file never holds the announcement back,
+    /// and dropped if the window closes first: nobody waits on a hash they walked away from.
+    /// </summary>
+    private UIElement BuildHash(string path)
+    {
+        var text = new TextBlock
+        {
+            Text = "SHA-256  working it out…",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 11,
+            Opacity = 0.5,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            IsTextSelectionEnabled = true,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var copy = new Button
+        {
+            Content = new FontIcon { Glyph = "", FontSize = 11 },
+            Padding = new Thickness(5, 2, 5, 2),
+            MinWidth = 0,
+            MinHeight = 0,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            Visibility = Visibility.Collapsed,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        ToolTipService.SetToolTip(copy, "Copy SHA-256");
+
+        var line = new Grid { ColumnSpacing = 2 };
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        line.Children.Add(text);
+        Grid.SetColumn(copy, 1);
+        line.Children.Add(copy);
+
+        string? digest = null;
+        copy.Click += (_, _) =>
+        {
+            if (digest is null) return;
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(digest);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            ToolTipService.SetToolTip(copy, "Copied");
+        };
+
+        var cts = new CancellationTokenSource();
+        Unloaded += (_, _) => cts.Cancel();
+        var started = false;
+        Loaded += async (_, _) =>
+        {
+            if (started) return;
+            started = true;
+            try
+            {
+                digest = await Task.Run(() => Checksum.ComputeAsync(path, Checksum.Kind.Sha256, ct: cts.Token));
+                text.Text = $"SHA-256  {digest}";
+                ToolTipService.SetToolTip(text, digest);
+                copy.Visibility = Visibility.Visible;
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Moved, opened elsewhere or scanned by antivirus: not worth more than a shrug.
+                text.Text = "SHA-256  not available";
+                App.Log($"Could not hash {path}: {exception.Message}");
+            }
+        };
+
+        return line;
     }
 }

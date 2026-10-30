@@ -2,7 +2,8 @@ namespace Stretto.Core;
 
 /// <summary>
 /// Builds a curl command reproducing a download request, for debugging an expired link
-/// outside the app. Pure string building, so it is unit tested rather than eyeballed.
+/// outside the app, written for PowerShell (where Windows users paste it). Pure string
+/// building, so it is unit tested rather than eyeballed.
 /// </summary>
 public static class CurlCommand
 {
@@ -11,7 +12,8 @@ public static class CurlCommand
     {
         var parts = new List<string>
         {
-            "curl", "--fail", "--location", "--remote-name", Quote(url.ToString()),
+            // curl.exe, not curl: Windows PowerShell 5 aliases the bare name to Invoke-WebRequest.
+            "curl.exe", "--fail", "--location", "--remote-name", Quote(url.ToString()),
         };
 
         if (headers is not null)
@@ -33,9 +35,9 @@ public static class CurlCommand
     }
 
     /// <summary>
-    /// Double quotes suit both shells curl is pasted into. Backslashes and quotes inside
-    /// are escaped for curl's own argument parsing.
+    /// PowerShell single quotes: the one form where nothing inside is interpreted, so a
+    /// <c>$(…)</c> planted in a URL or cookie stays text. Double quotes would run it on paste.
+    /// An apostrophe is written twice, which is PowerShell's only escape inside them.
     /// </summary>
-    private static string Quote(string value) =>
-        "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
 }
