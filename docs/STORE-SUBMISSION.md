@@ -34,17 +34,47 @@ the source and optional tools; Stretto does not bypass DRM or access permissions
 
 ## Still required before submission
 
-1. Complete Partner Center sign-in/account verification with the account that
-   owns reserved product `9NDPLDT131GP`. The current session reached a sign-in
-   flow; no ownership or live identity fields were inferred from it.
-2. Read the exact package Name, Publisher and PublisherDisplayName from App
-   identity. The GitHub alpha uses a development identity and self-signed testing
-   certificate; do not substitute those for the Store identity.
-3. Build the Store package using the observed identity, validate its contents and
+1. Confirm any remaining account-verification requirements before certification.
+2. Validate the Store package using the observed identity and
    test installation/activation with the relevant packaging workflow.
-4. Run the Windows App Certification Kit, then complete the broader acceptance
+3. Run the Windows App Certification Kit, then complete the broader acceptance
    checks in RELEASING.md. The clean Sandbox smoke result does not replace them.
-5. Capture real app screenshots, complete accessibility/age-rating/pricing and
+4. Capture real app screenshots, complete accessibility/age-rating/pricing and
    listing fields, and provide certification notes for optional tools and browser setup.
-6. Review the complete submission before publishing. Do not claim Store availability
+5. Review the complete submission before publishing. Do not claim Store availability
    on the homepage until it is confirmed.
+## Live preparation — October 30, 2026
+
+Partner Center opened the reserved product successfully. Submission 1 was created
+as an editable draft; it has not been submitted for certification.
+
+Observed Product identity values:
+
+- Name: `MarekCodex.StrettoDownloadManager`
+- Publisher: `CN=BF937EA2-16E2-41D1-BEC3-5DF343330C30`
+- PublisherDisplayName: `Marek Codex`
+- Package family: `MarekCodex.StrettoDownloadManager_bt7pnfxx6vfq8`
+
+A fresh unsigned Store MSIX was built with these values. The manifest identity,
+resource index and bundled license were inspected inside the ZIP package.
+SHA-256: `35a949152e934942635c0e866dcfffe637ebecec54f1e56aefa1dbb32eeee88e`.
+The published GitHub test-signed assets were not replaced.
+
+The draft Properties section was saved with Utilities + tools / File managers,
+the public homepage, support URL and privacy policy. Personal-information use
+is declared because downloads and browser handoff may process user-provided URLs,
+authentication information and local file paths; no analytics claim is implied.
+Accessibility certification was not claimed.
+
+The Windows App Certification Kit was not found on PATH or in the standard
+Windows Kits directory. Its tests remain outstanding; package creation and
+Partner Center upload validation do not replace them.
+
+The initial upload rejected the manifest display name `Stretto` because the
+reserved name is `Stretto Download Manager`. Both package and visual display
+names were corrected to the reserved name, and the Store package was rebuilt.
+
+The corrected package passed Partner Center's initial package validation and was
+saved in Submission 1 for Windows Desktop x64. The remaining upload warning
+is the restricted `runFullTrust` capability, which needs certification approval.
+This is upload acceptance, not certification or proof of runtime compatibility.

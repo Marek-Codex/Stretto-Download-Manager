@@ -6,7 +6,7 @@
          IgnorableNamespaces="uap desktop rescap">
   <Identity Name="@IDENTITY@" Publisher="@PUBLISHER@" Version="@VERSION@" ProcessorArchitecture="x64" />
   <Properties>
-    <DisplayName>Stretto</DisplayName>
+    <DisplayName>Stretto Download Manager</DisplayName>
     <PublisherDisplayName>@PUBLISHER_DISPLAY@</PublisherDisplayName>
     <Logo>PackageAssets\StoreLogo.png</Logo>
     <Description>Stretto Download Manager</Description>
@@ -15,7 +15,7 @@
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
   <Applications>
     <Application Id="Stretto" Executable="Stretto.App.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="Stretto" Description="Stretto Download Manager"
+      <uap:VisualElements DisplayName="Stretto Download Manager" Description="Stretto Download Manager"
           BackgroundColor="transparent" Square150x150Logo="PackageAssets\Square150x150Logo.png"
           Square44x44Logo="PackageAssets\Square44x44Logo.png" />
       <Extensions>
