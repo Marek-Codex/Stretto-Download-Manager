@@ -85,5 +85,10 @@ were saved with manual publishing hold and a sub-500-character runFullTrust
 justification; the overview marked this section Complete.
 
 Pricing was configured at USD 0 for the default worldwide market group and
-saved as a draft. IARC completion is pending permission: its form states that
+saved as a draft. The IARC form states that
 Microsoft shares the publisher display name and account email with IARC.
+
+After explicit approval of the IARC terms and age-of-majority declaration, the
+ratings were saved on October 30, 2026: ESRB Everyone, PEGI/Microsoft/IARC 3+,
+and all-ages equivalents for the other displayed systems. The saved summary
+showed Current Rating ID Pending. This does not submit the app for certification.
