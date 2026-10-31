@@ -133,3 +133,22 @@ Windows App Certification Kit result.
 The 0.1.1.0 upload passed initial package validation, with the expected
 runFullTrust approval warning. The package page was refreshed to clear stale
 upload progress controls before saving replacement of the older draft package.
+## Certification preparation follow-up
+
+The Microsoft-signed Windows SDK installer (10.1.26100.7705) installed the
+App Certification Kit feature successfully on the development host, with CEIP
+disabled and no restart. The selected feature also installs its verifier prerequisites.
+No unrelated SDK workloads were selected.
+
+Two offline SDK setup attempts in disposable Windows Sandbox guests stalled on
+the verifier MSI prerequisite and were abandoned. A third guest used the installed
+kit files directly: the exact Store-identity 0.1.1.0 payload was test-signed with
+a guest-only certificate and installed successfully, but appcert exited -5 without
+an XML report. This is not a WACK pass or a completed WACK finding report.
+All owned disposable sessions were stopped; no host certificate trust was changed.
+
+Reviewer notes explain normal download setup, optional browser installation,
+unsigned Firefox limitations, optional media tools and the remaining test coverage.
+The package and screenshot evidence supports requesting Microsoft certification
+review while retaining manual publication hold; stable-release acceptance checks
+remain open. Microsoft acceptance is not guaranteed.
