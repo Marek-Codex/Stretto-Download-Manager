@@ -88,7 +88,7 @@ public sealed class AppSettings
 
     public static readonly string[] DefaultCaptureTypes =
     [
-        "3gp", "7z", "avi", "bz2", "deb", "doc", "docx", "exe", "gz", "iso", "msi", "pdf",
+        "3gp", "7z", "avi", "bz2", "deb", "doc", "docx", "exe", "gz", "iso", "msi", "msix", "msixbundle", "pdf",
         "ppt", "pptx", "rar", "rpm", "sit", "sitx", "tar", "jar", "xls", "xlsx", "xz", "zip",
         // These are large model files people fetch from APIs and
         // there is no reason a download manager should ignore them.
@@ -465,6 +465,33 @@ public sealed class AppSettings
             // number. It was opt-in while new; the unset default of off becomes on, once.
             TagClashingNames = true;
             SettingsVersion = 5;
+        }
+
+        if (SettingsVersion < 6)
+        {
+            // Version 6: model files get a Models category and Windows app packages count as
+            // applications. Categories are saved whole, so new defaults have to be added here.
+            // Add only the new types. Old defaults the user removed stay removed.
+            AddMissingCategoryDefaults("Models", CategoryRules.Defaults().Single(c => c.Name == "Models").Extensions, createIfMissing: true);
+            AddMissingCategoryDefaults("Application", ["msixbundle", "appxbundle"], createIfMissing: false);
+            foreach (var type in new[] { "msix", "msixbundle" })
+                if (!CaptureTypes.Contains(type, StringComparer.OrdinalIgnoreCase))
+                    CaptureTypes.Add(type);
+            SettingsVersion = 6;
+        }
+    }
+
+    private void AddMissingCategoryDefaults(string name, IEnumerable<string> extensions, bool createIfMissing)
+    {
+        var filed = Categories.SelectMany(c => c.Extensions).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missing = extensions.Where(filed.Add).ToList();
+        if (Categories.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)) is { } existing)
+            existing.Extensions = [.. existing.Extensions, .. missing];
+        else if (createIfMissing && missing.Count > 0)
+        {
+            var fresh = CategoryRules.Defaults().Single(c => c.Name == name);
+            fresh.Extensions = missing;
+            Categories.Add(fresh);
         }
     }
 

@@ -47,6 +47,56 @@ public static partial class Program
 
         Assert.Equal("report.pdf", FilePaths.SafeName("report.pdf"), "an ordinary name is untouched");
         Assert.Equal("download", FilePaths.SafeName("  "), "a blank name falls back");
+
+        // Windows app packages are installers too, not "Other".
+        foreach (var package in new[] { "Terminal.msixbundle", "App.msix", "Tool.appx", "Suite.appxbundle" })
+            Assert.Equal("Application", CategoryRules.Classify(package), package);
+        foreach (var model in new[] { "flux1-dev-fp8.safetensors", "llama-3-8b.Q4_K_M.gguf", "v1-5.ckpt" })
+            Assert.Equal("Models", CategoryRules.Classify(model), model);
+        Assert.Equal(CategoryRules.Fallback, CategoryRules.Classify("firmware.bin"), "a bare .bin says nothing");
+
+        // An older settings file keeps its own categories, so the new ones arrive by migration,
+        // without taking back an extension the user filed elsewhere.
+        var originalData = DownloadStore.Directory;
+        DownloadStore.Directory = Path.Combine(folder.Path, "data");
+        try
+        {
+            Directory.CreateDirectory(DownloadStore.Directory);
+            var old = new AppSettings { SettingsVersion = 5 };
+            old.Categories.RemoveAll(c => c.Name == "Models");
+            old.Categories.Single(c => c.Name == "Application").Extensions = ["exe", "msi"];
+            old.Categories.Single(c => c.Name == "Document").Extensions = [.. old.Categories.Single(c => c.Name == "Document").Extensions, "onnx"];
+            old.CaptureTypes.RemoveAll(t => t.StartsWith("msix"));
+            File.WriteAllText(Path.Combine(DownloadStore.Directory, "settings.json"), JsonSerializer.Serialize(old));
+
+            var migrated = AppSettings.Load();
+            var models = migrated.Categories.Single(c => c.Name == "Models").Extensions;
+            Assert.True(models.Contains("safetensors") && !models.Contains("onnx"), "Models added, minus what the user filed elsewhere");
+            Assert.True(migrated.Categories.Single(c => c.Name == "Application").Extensions.Contains("msixbundle"), "packages join Application");
+            Assert.True(!migrated.Categories.Single(c => c.Name == "Application").Extensions.Contains("bat"), "migration preserves removed application types");
+            Assert.True(!migrated.Categories.Single(c => c.Name == "Application").Extensions.Contains("msix"), "migration does not restore an older removed package type");
+            Assert.True(migrated.CaptureTypes.Contains("msixbundle"), "packages are captured from the browser");
+
+            migrated.Categories.Add(new CategoryRule { Name = "Research", Extensions = ["custommodel"], Folder = Path.Combine(folder.Path, "research") });
+            migrated.Categories.Single(c => c.Name == "Application").Extensions.Remove("msixbundle");
+            migrated.Save();
+            var reloaded = AppSettings.Load();
+            Assert.Equal(Path.Combine(folder.Path, "research"), reloaded.Categories.Single(c => c.Name == "Research").Folder, "custom category and folder survive reload");
+            Assert.Equal("Research", CategoryRules.Classify("weights.custommodel"), "custom file types remain editable");
+            Assert.True(!reloaded.Categories.Single(c => c.Name == "Application").Extensions.Contains("msixbundle"), "migration does not repeat after a user edit");
+
+            old.Categories.RemoveAll(c => c.Name == "Application");
+            old.Categories.Single(c => c.Name == "Document").Extensions.Add("msixbundle");
+            File.WriteAllText(Path.Combine(DownloadStore.Directory, "settings.json"), JsonSerializer.Serialize(old));
+            var withoutApplications = AppSettings.Load();
+            Assert.True(withoutApplications.Categories.All(c => c.Name != "Application"), "a deleted category stays deleted");
+            Assert.Equal("Document", CategoryRules.Classify("package.msixbundle"), "a reassigned package type stays in its chosen category");
+        }
+        finally
+        {
+            DownloadStore.Directory = originalData;
+            CategoryRules.Use(CategoryRules.Defaults());
+        }
         return Task.CompletedTask;
     }
 

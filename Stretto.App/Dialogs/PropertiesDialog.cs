@@ -47,13 +47,13 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
 
         var title = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
         title.Children.Add(Selectable(item.Name, 14, semiBold: true));
-        title.Children.Add(new TextBlock
+        var summary = new TextBlock
         {
-            Text = $"{item.Category}  ·  {item.StatusLabel}"
-                 + (item.TotalBytes is { } size ? $"  ·  {DownloadItem.FormatBytes(size)}" : ""),
+            Text = SummaryOf(item),
             FontSize = 12,
             Foreground = Visuals.StatusBrush(item.Status),
-        });
+        };
+        title.Children.Add(summary);
 
         if (embedded)
             title.Children[0].SetValue(TextBlock.MaxLinesProperty, 4);
@@ -70,7 +70,7 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
         sheet.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         if (embedded)
-            Add(sheet, "Status", item.Status == DownloadStatus.Complete ? null : item.DetailLine);
+            KeepCurrent(item, Add(sheet, "Status", item.Status == DownloadStatus.Complete ? null : item.DetailLine), summary);
         Add(sheet, "Saved in", item.TargetDirectory);
         Add(sheet, "Address", item.Url, maxLines: 3);
         Add(sheet, "Added", item.Added.LocalDateTime.ToString("d MMMM yyyy, HH:mm"));
@@ -263,10 +263,39 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
     /// <param name="mono">Monospaced, for addresses and headers.</param>
     /// <param name="maxLines">Signed download links run to a dozen lines; three is enough to
     /// recognise one, and Copy address in the footer takes the whole thing.</param>
-    private void Add(Grid sheet, string label, string? value, bool mono = false, int maxLines = 0)
+    private static string SummaryOf(DownloadItem item) =>
+        $"{item.Category}  ·  {item.StatusLabel}"
+        + (item.TotalBytes is { } size ? $"  ·  {DownloadItem.FormatBytes(size)}" : "");
+
+    /// <summary>
+    /// The pane stays open beside a running download, so a snapshot would freeze its numbers
+    /// at the moment of selection while the row next to it kept moving. It listens only while
+    /// on screen; a closed pane holds no reference to the item.
+    /// </summary>
+    private void KeepCurrent(DownloadItem item, TextBlock? status, TextBlock summary)
+    {
+        void Changed(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is not (nameof(DownloadItem.DetailLine) or nameof(DownloadItem.Status)))
+                return;
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (status is not null)
+                    status.Text = item.DetailLine;
+                summary.Text = SummaryOf(item);
+                summary.Foreground = Visuals.StatusBrush(item.Status);
+            });
+        }
+
+        Loaded += (_, _) => item.PropertyChanged += Changed;
+        Unloaded += (_, _) => item.PropertyChanged -= Changed;
+    }
+
+    private TextBlock? Add(Grid sheet, string label, string? value, bool mono = false, int maxLines = 0)
     {
         if (string.IsNullOrWhiteSpace(value))
-            return;
+            return null;
 
         // The pane is too narrow for a label column, so each label sits over its value.
         if (_embedded)
@@ -301,7 +330,7 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
                 Grid.SetColumnSpan(rule, 2);
                 sheet.Children.Add(rule);
             }
-            return;
+            return shown;
         }
 
         var row = sheet.RowDefinitions.Count;
@@ -338,6 +367,7 @@ public sealed class PropertiesDialog : UserControl, IWindowForm, IWindowFormChro
             Grid.SetColumnSpan(line, 2);
             sheet.Children.Add(line);
         }
+        return text;
     }
 
     private static TextBlock Selectable(string text, double size, bool semiBold = false) => new()

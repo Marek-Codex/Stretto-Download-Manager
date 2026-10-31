@@ -219,9 +219,17 @@ public static class CategoryRules
         },
         new()
         {
+            // Checkpoints, LoRAs and quantised LLMs: the largest files most people download,
+            // and nothing about them says "Other". A bare .bin is left out; it is anything.
+            Name = "Models",
+            Icon = "IconModel",
+            Extensions = ["safetensors", "gguf", "ckpt", "pt", "pth", "onnx"],
+        },
+        new()
+        {
             Name = "Application",
             Icon = "IconApplication",
-            Extensions = ["exe", "msi", "msix", "appx", "bat", "cmd", "apk"],
+            Extensions = ["exe", "msi", "msix", "msixbundle", "appx", "appxbundle", "bat", "cmd", "apk"],
         },
     ];
 }

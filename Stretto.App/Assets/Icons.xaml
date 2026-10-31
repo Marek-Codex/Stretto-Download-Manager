@@ -21,6 +21,7 @@
     <x:String x:Key="IconImage">&#xE91B;</x:String>
     <x:String x:Key="IconEBook">&#xE8F1;</x:String>
     <x:String x:Key="IconApplication">&#xECAA;</x:String>
+    <x:String x:Key="IconModel">&#xE950;</x:String>
     <x:String x:Key="IconFile">&#xE7C3;</x:String>
     <x:String x:Key="IconOther">&#xE7C3;</x:String>
 
