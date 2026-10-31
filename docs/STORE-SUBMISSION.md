@@ -1,6 +1,6 @@
 # Store submission preparation
 
-The GitHub alpha is public. The Store app remains reserved/unpublished; this is
+The GitHub alpha is public. Store candidate 0.1.1 is in certification and remains unpublished; this is
 a prepared submission worksheet, not a certification or account-verification result.
 
 ## Public project links
@@ -46,7 +46,7 @@ the source and optional tools; Stretto does not bypass DRM or access permissions
 ## Live preparation — October 30, 2026
 
 Partner Center opened the reserved product successfully. Submission 1 was created
-as an editable draft; it has not been submitted for certification.
+as an editable draft; it was not submitted at that preparation stage.
 
 Observed Product identity values:
 
@@ -152,3 +152,18 @@ unsigned Firefox limitations, optional media tools and the remaining test covera
 The package and screenshot evidence supports requesting Microsoft certification
 review while retaining manual publication hold; stable-release acceptance checks
 remain open. Microsoft acceptance is not guaranteed.
+## Submitted for Microsoft certification
+
+On October 30, 2026 at approximately 22:49 Eastern, Submission 1 containing
+`Stretto-0.1.1.0-win-x64.store.msix` was submitted for certification at the user's
+request. Partner Center displayed **In certification**, Submission Complete and
+Pre-processing In progress. This is not an acceptance or publication result.
+
+The saved publishing option was verified before submission: **Don't publish this
+submission until I select Publish now**. The post-submission page confirmed that
+the product will start publishing only after Publish now is selected.
+
+The additional testing notes were saved and re-opened to verify persistence.
+They disclose optional tools/extension restrictions, actual package checks and
+remaining WACK/browser/accessibility/minimum-OS/upgrade coverage. No credentials
+were entered into the notes. Microsoft acceptance is not guaranteed.
