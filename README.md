@@ -10,7 +10,7 @@
 ![Release status](https://img.shields.io/badge/status-pre--release-3CA0FF?style=flat-square)
 ![License](https://img.shields.io/badge/license-Apache--2.0-A03CFF?style=flat-square)
 
-![README image loads](https://count.getloli.com/@marek-codex.stretto-download-manager?theme=miku)
+![README image loads](https://count.getloli.com/@marek-codex.stretto?theme=miku)
 
 </div>
 
@@ -27,6 +27,27 @@ See the [release checklist](docs/RELEASING.md) and
 
 *Stretto* is the fugue term for subject entries piling up overlapping and compressed —
 which is what a multi-connection download is.
+
+## A look around
+
+Screenshots from the current development/Store candidate. The public alpha may
+look a little different. Example files illustrate the interface; transfer speed
+depends on your connection and the server.
+
+![Stretto Library with file-type filters and finished downloads](docs/images/03-library.png)
+
+![An active transfer with its live details pane open](docs/images/07-single-download-speed.png)
+
+<details>
+<summary>Adding downloads, checking a finished file, and making it yours</summary>
+
+![Add download with file name, destination and queue controls](docs/images/05-add-download.png)
+
+![Finished download with its SHA-256 checksum and folder controls](docs/images/04-finished-with-sha256.png)
+
+![Download settings with folders, naming options and editable categories](docs/images/06-settings.png)
+
+</details>
 
 ## What it does
 
