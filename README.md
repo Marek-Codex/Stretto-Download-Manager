@@ -10,7 +10,7 @@
 ![Release status](https://img.shields.io/badge/status-pre--release-3CA0FF?style=flat-square)
 ![License](https://img.shields.io/badge/license-Apache--2.0-A03CFF?style=flat-square)
 
-<img src="https://count.getloli.com/@marek-codex.stretto?theme=miku" alt="README image loads — Miku anime counter" width="480" />
+<img src="https://count.getloli.com/@marek-codex.stretto?theme=booru-lewd" alt="README image loads — anime counter" width="480" />
 
 </div>
 
