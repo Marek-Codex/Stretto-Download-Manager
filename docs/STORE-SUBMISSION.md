@@ -92,3 +92,44 @@ After explicit approval of the IARC terms and age-of-majority declaration, the
 ratings were saved on October 30, 2026: ESRB Everyone, PEGI/Microsoft/IARC 3+,
 and all-ages equivalents for the other displayed systems. The saved summary
 showed Current Rating ID Pending. This does not submit the app for certification.
+## Reviewed build and screenshots
+
+The category and live-details changes were reviewed and committed as
+`3bef961331bd3bb4659da1f11d42bbbe72192967`. Release regressions passed all 21
+checks, including removed/reassigned category types and custom-category persistence.
+The user also reported that the installed build looked good; this is a visual
+acceptance report, not a substitute for browser or accessibility tests.
+
+Five app screenshots (1426 by 893 PNG) were inspected and saved to the English
+Store listing: Library, live transfer details, Add download, checksum completion,
+and download settings. Captions describe example files and avoid promising the
+sample transfer speed. The Store listing section then showed Complete.
+
+A new MSIX was built from the reviewed source with the reserved Store identity.
+SHA-256: `5df4abe67e01d74f738cabe2173695da8a1820e503e25ddd0f383e1800518203`.
+Its engine manifest records the reviewed commit, sourceModified false and source
+SHA-256 `59bfc6ddc92a6a43b859044900ed199c6a5cd7aec96cd318a520a0daeb71e8e3`.
+
+Partner Center rejected replacing the saved 0.1.0.0 package with different
+contents under the same full package name. The app/Store candidate was therefore
+advanced to 0.1.1 (package 0.1.1.0) in commit 3448651. The public GitHub alpha
+remains unchanged. The preceding 0.1.0.0 hash identifies the rejected candidate,
+not a submitted or certified Store package.
+
+The versioned Store candidate SHA-256 is
+`1b52365c66764a745a675b00271fb37224c5c67451eda72ff43b004987f29ff9`.
+It was built from 3448651e23d248a5df6cf6007e15188f095f1d85 with the same engine
+source fingerprint as the reviewed 3bef961 build. The intervening source change
+only advances the app version. Its own deployment checks remain distinct from
+the test-signed development-identity package checks.
+
+The reviewed development-identity 0.1.0.0 EXE/MSIX set passed all 11 disposable
+Windows checks from 22:24:48 to 22:29:31 Eastern on October 30, 2026. Both
+installed engines verified every byte of a 1 MiB fixture; window activation,
+startup opt-in, same-version EXE reinstall and both removals passed. The owned
+Sandbox was stopped afterward. This was not a cross-version upgrade test or
+Windows App Certification Kit result.
+
+The 0.1.1.0 upload passed initial package validation, with the expected
+runFullTrust approval warning. The package page was refreshed to clear stale
+upload progress controls before saving replacement of the older draft package.

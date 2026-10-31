@@ -1,6 +1,7 @@
 # Release checklist
 
-The current free version is 0.1.0. The Store product **Stretto Download Manager** is
+The current Store candidate is 0.1.1; the public GitHub alpha remains 0.1.0-alpha.1.
+The Store product **Stretto Download Manager** is
 reserved as an MSIX app, product ID `9NDPLDT131GP`. Reservation is not publication.
 
 ## Repository
