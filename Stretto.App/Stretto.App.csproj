@@ -5,7 +5,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Stretto.App</RootNamespace>
     <!-- The one place the version lives. Release tags on GitHub are compared against it. -->
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\stretto.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
